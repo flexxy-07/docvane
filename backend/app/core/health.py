@@ -19,7 +19,7 @@ async def check_database() -> dict[str, Any]:
 
 async def check_redis() -> dict[str, Any]:
     try:
-        client = aioredis.from_url(settings.REDIS_URL, socket_timeout=2.0)
+        client = aioredis.from_url(settings.REDIS_URL, socket_timeout=2.0)  # type: ignore[no-untyped-call]
         await client.ping()
         await client.aclose()
         return {"status": "healthy"}

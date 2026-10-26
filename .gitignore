@@ -35,3 +35,4 @@ Thumbs.db
 *.sqlite3
 pgdata/
 redisdata/
+uploads/

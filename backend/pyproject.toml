@@ -18,7 +18,7 @@ explicit_package_bases = true
 warn_unused_configs = true
 
 [[tool.mypy.overrides]]
-module = ["boto3.*", "botocore.*"]
+module = ["boto3", "botocore.*", "redis", "redis.*"]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]

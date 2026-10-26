@@ -7,7 +7,7 @@ from backend.app.main import app
 @pytest.mark.asyncio
 async def test_healthz_liveness_probe() -> None:
     """Verifies that /healthz returns 200 OK immediately."""
-    transport = ASGITransport(app=app)  # type: ignore[arg-type]
+    transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
         response = await client.get("/healthz")
 
@@ -20,7 +20,7 @@ async def test_healthz_liveness_probe() -> None:
 @pytest.mark.asyncio
 async def test_readyz_readiness_probe() -> None:
     """Verifies that /readyz connects to PostgreSQL and Redis and returns 200 OK."""
-    transport = ASGITransport(app=app)  # type: ignore[arg-type]
+    transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
         response = await client.get("/readyz")
 
@@ -34,7 +34,7 @@ async def test_readyz_readiness_probe() -> None:
 @pytest.mark.asyncio
 async def test_tenant_context_middleware() -> None:
     """Verifies that X-Tenant-ID and custom X-Request-ID are echoed in response headers."""
-    transport = ASGITransport(app=app)  # type: ignore[arg-type]
+    transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
         response = await client.get(
             "/healthz",
