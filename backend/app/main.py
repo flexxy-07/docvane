@@ -7,6 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from backend.app.api.health import router as health_router
 from backend.app.core.config import settings
 from backend.app.core.logging import setup_logging
+from backend.app.core.middleware import RequestContextMiddleware
 
 logger = setup_logging(debug=settings.DEBUG)
 
@@ -27,6 +28,8 @@ def create_app() -> FastAPI:
         redoc_url="/redoc" if settings.DEBUG else None,
         lifespan=lifespan,
     )
+
+    app.add_middleware(RequestContextMiddleware)
 
     app.add_middleware(
         CORSMiddleware,
