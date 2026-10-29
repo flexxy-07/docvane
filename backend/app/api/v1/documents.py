@@ -74,6 +74,21 @@ async def upload_document(
             tenant_id=tenant_id,
             file=file,
         )
+
+        if not is_duplicate:
+            try:
+                from backend.app.workers.tasks import process_document
+
+                process_document.delay(str(doc.id), str(tenant_id))
+            except Exception as task_err:
+                # Log warning if broker is offline so upload still succeeds
+                import logging
+
+                logging.getLogger(__name__).warning(
+                    "Failed to queue background processing task",
+                    extra={"document_id": str(doc.id), "error": str(task_err)},
+                )
+
         return DocumentUploadResponse(
             id=doc.id,
             tenant_id=doc.tenant_id,
