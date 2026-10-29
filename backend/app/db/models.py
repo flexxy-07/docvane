@@ -1,7 +1,17 @@
 import enum
 import uuid
 
-from sqlalchemy import Boolean, Enum, ForeignKey, Integer, String, Text, UniqueConstraint, Uuid
+from sqlalchemy import (
+    JSON,
+    Boolean,
+    Enum,
+    ForeignKey,
+    Integer,
+    String,
+    Text,
+    UniqueConstraint,
+    Uuid,
+)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from backend.app.db.base import Base, TimestampMixin, UUIDPrimaryKeyMixin
@@ -102,3 +112,34 @@ class Document(Base, UUIDPrimaryKeyMixin, TimestampMixin):
 
     # Relationships
     tenant: Mapped["Tenant"] = relationship("Tenant", back_populates="documents")
+
+    pages: Mapped[list["DocumentPage"]] = relationship(
+        "DocumentPage", back_populates="document", cascade="all, delete-orphan"
+    )
+
+class DocumentPage(Base, UUIDPrimaryKeyMixin, TimestampMixin):
+    __tablename__ = "document_pages"
+    __table_args__ = (
+        UniqueConstraint("document_id", "page_no", name="uq_document_page_number"),
+    )
+
+    tenant_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), index=True, nullable=False
+    )
+    document_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid(as_uuid=True),
+        ForeignKey("documents.id", ondelete="CASCADE"),
+        index=True,
+        nullable=False,
+    )
+    page_no: Mapped[int] = mapped_column(Integer, nullable=False)
+    image_storage_key: Mapped[str | None] = mapped_column(String(1024), nullable=True)
+    ocr_text: Mapped[str | None] = mapped_column(Text, nullable=True)
+    layout_json: Mapped[dict[str, object] | None] = mapped_column(JSON, nullable=True)
+    ocr_engine: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    used_vision_fallback: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+
+    # Relationships
+    tenant: Mapped["Tenant"] = relationship("Tenant")
+    document: Mapped["Document"] = relationship("Document", back_populates="pages")
+
