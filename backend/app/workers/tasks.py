@@ -87,12 +87,23 @@ async def _async_process_document(document_id_str: str, tenant_id_str: str) -> d
             # Single image page: treated as 1-page document
             pages_to_create.append((1, file_bytes, None))
 
-        # 5. Persist page files & DocumentPage records
+        # 5. Persist page files & DocumentPage records with hybrid OCR
+        from backend.app.services.ocr import OCRService
+
+        ocr_service = OCRService()
+
         for page_no, page_data, direct_text in pages_to_create:
             page_ext = "pdf" if is_pdf else doc.file_type
             page_storage_key = f"{tenant_id}/{document_id}/pages/page_{page_no}.{page_ext}"
             content_type = "application/pdf" if is_pdf else f"image/{doc.file_type}"
             storage.upload_bytes(page_data, page_storage_key, content_type=content_type)
+
+            # Parse with hybrid OCR (Fast-path direct text or Vision LLM fallback)
+            ocr_result = ocr_service.parse_page(
+                page_bytes=page_data,
+                mime_type=content_type,
+                existing_text=direct_text,
+            )
 
             page_model = DocumentPage(
                 id=uuid.uuid4(),
@@ -100,10 +111,10 @@ async def _async_process_document(document_id_str: str, tenant_id_str: str) -> d
                 document_id=document_id,
                 page_no=page_no,
                 image_storage_key=page_storage_key,
-                ocr_text=direct_text,
-                layout_json=None,
-                ocr_engine="pypdf" if direct_text else None,
-                used_vision_fallback=False,
+                ocr_text=ocr_result.text,
+                layout_json=ocr_result.layout_json,
+                ocr_engine=ocr_result.engine,
+                used_vision_fallback=ocr_result.used_vision_fallback,
             )
             session.add(page_model)
 
