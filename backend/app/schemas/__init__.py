@@ -11,6 +11,12 @@ from backend.app.schemas.extraction import (
     InvoiceExtraction,
     InvoiceLineItem,
 )
+from backend.app.schemas.review import (
+    AuditLogResponse,
+    ReviewTaskListResponse,
+    ReviewTaskResolveRequest,
+    ReviewTaskResponse,
+)
 
 __all__ = [
     "DocumentUploadResponse",
@@ -22,5 +28,9 @@ __all__ = [
     "InvoiceLineItem",
     "InvoiceExtraction",
     "ContractExtraction",
+    "ReviewTaskResponse",
+    "ReviewTaskListResponse",
+    "ReviewTaskResolveRequest",
+    "AuditLogResponse",
 ]
 

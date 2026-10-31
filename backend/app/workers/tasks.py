@@ -179,9 +179,10 @@ async def _async_process_document(document_id_str: str, tenant_id_str: str) -> d
                 if is_low:
                     any_low_confidence = True
 
+                field_id = uuid.uuid4()
                 session.add(
                     ExtractedFieldModel(
-                        id=uuid.uuid4(),
+                        id=field_id,
                         tenant_id=tenant_id,
                         document_id=document_id,
                         field_name=field_name,
@@ -194,6 +195,19 @@ async def _async_process_document(document_id_str: str, tenant_id_str: str) -> d
                         status=FieldStatus.NEEDS_REVIEW if is_low else FieldStatus.AUTO,
                     )
                 )
+
+                if is_low:
+                    from backend.app.db.models import ReviewStatus, ReviewTask
+
+                    session.add(
+                        ReviewTask(
+                            id=uuid.uuid4(),
+                            tenant_id=tenant_id,
+                            document_id=document_id,
+                            field_id=field_id,
+                            status=ReviewStatus.PENDING,
+                        )
+                    )
 
         elif classification.doc_type == DocumentType.CONTRACT:
             contract_data = extraction_service.extract_contract(full_text)
@@ -217,9 +231,10 @@ async def _async_process_document(document_id_str: str, tenant_id_str: str) -> d
                 if is_low:
                     any_low_confidence = True
 
+                field_id = uuid.uuid4()
                 session.add(
                     ExtractedFieldModel(
-                        id=uuid.uuid4(),
+                        id=field_id,
                         tenant_id=tenant_id,
                         document_id=document_id,
                         field_name=field_name,
@@ -232,6 +247,19 @@ async def _async_process_document(document_id_str: str, tenant_id_str: str) -> d
                         status=FieldStatus.NEEDS_REVIEW if is_low else FieldStatus.AUTO,
                     )
                 )
+
+                if is_low:
+                    from backend.app.db.models import ReviewStatus, ReviewTask
+
+                    session.add(
+                        ReviewTask(
+                            id=uuid.uuid4(),
+                            tenant_id=tenant_id,
+                            document_id=document_id,
+                            field_id=field_id,
+                            status=ReviewStatus.PENDING,
+                        )
+                    )
 
         # 9. Status transition based on extraction confidence:
         # If low confidence -> NEEDS_REVIEW (Phase 3 review queue)

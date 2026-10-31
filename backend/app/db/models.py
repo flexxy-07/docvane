@@ -43,6 +43,13 @@ class UserRole(enum.StrEnum):
     VIEWER = "viewer"
 
 
+class ReviewStatus(enum.StrEnum):
+    PENDING = "pending"
+    CLAIMED = "claimed"
+    APPROVED = "approved"
+    CORRECTED = "corrected"
+
+
 class Tenant(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     __tablename__ = "tenants"
 
@@ -239,5 +246,81 @@ class Contract(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     # Relationships
     tenant: Mapped["Tenant"] = relationship("Tenant")
     document: Mapped["Document"] = relationship("Document")
+
+
+class ReviewTask(Base, UUIDPrimaryKeyMixin, TimestampMixin):
+    __tablename__ = "review_tasks"
+
+    tenant_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid(as_uuid=True),
+        ForeignKey("tenants.id", ondelete="CASCADE"),
+        index=True,
+        nullable=False,
+    )
+    document_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid(as_uuid=True),
+        ForeignKey("documents.id", ondelete="CASCADE"),
+        index=True,
+        nullable=False,
+    )
+    field_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid(as_uuid=True),
+        ForeignKey("extracted_fields.id", ondelete="CASCADE"),
+        index=True,
+        nullable=False,
+    )
+    assigned_to_user_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid(as_uuid=True),
+        ForeignKey("users.id", ondelete="SET NULL"),
+        index=True,
+        nullable=True,
+    )
+    status: Mapped[ReviewStatus] = mapped_column(
+        Enum(ReviewStatus, name="review_status", native_enum=False),
+        default=ReviewStatus.PENDING,
+        index=True,
+        nullable=False,
+    )
+    corrected_value: Mapped[str | None] = mapped_column(Text, nullable=True)
+    reviewed_at: Mapped[str | None] = mapped_column(String(50), nullable=True)
+
+    # Relationships
+    tenant: Mapped["Tenant"] = relationship("Tenant")
+    document: Mapped["Document"] = relationship("Document")
+    field: Mapped["ExtractedFieldModel"] = relationship("ExtractedFieldModel")
+    assignee: Mapped["User | None"] = relationship("User")
+
+
+class AuditLog(Base, UUIDPrimaryKeyMixin, TimestampMixin):
+    __tablename__ = "audit_logs"
+
+    tenant_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid(as_uuid=True),
+        ForeignKey("tenants.id", ondelete="CASCADE"),
+        index=True,
+        nullable=False,
+    )
+    document_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid(as_uuid=True),
+        ForeignKey("documents.id", ondelete="CASCADE"),
+        index=True,
+        nullable=False,
+    )
+    user_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid(as_uuid=True),
+        ForeignKey("users.id", ondelete="SET NULL"),
+        index=True,
+        nullable=True,
+    )
+    action: Mapped[str] = mapped_column(String(100), nullable=False)
+    field_name: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    old_value: Mapped[str | None] = mapped_column(Text, nullable=True)
+    new_value: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    # Relationships
+    tenant: Mapped["Tenant"] = relationship("Tenant")
+    document: Mapped["Document"] = relationship("Document")
+    user: Mapped["User | None"] = relationship("User")
+
 
 

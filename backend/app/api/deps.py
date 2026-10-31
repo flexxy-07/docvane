@@ -45,5 +45,19 @@ async def get_tenant_db(
             await session.close()
 
 def get_storage() -> StorageService:
-  """ Dependency provider for the storage service """
-  return get_storage_service()
+    """Dependency provider for the storage service."""
+    return get_storage_service()
+
+
+def get_optional_user_id(request: Request) -> uuid.UUID | None:
+    """Extract optional user ID from request headers."""
+    user_header = request.headers.get("X-User-ID")
+    if not user_header:
+        return None
+    try:
+        return uuid.UUID(user_header)
+    except (ValueError, AttributeError):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid 'X-User-ID' header: must be a valid UUID format",
+        ) from None

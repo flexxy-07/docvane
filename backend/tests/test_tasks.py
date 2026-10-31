@@ -57,6 +57,7 @@ async def test_async_process_document_success() -> None:
     mock_storage.download_bytes.return_value = pdf_data
 
     mock_session = AsyncMock()
+    mock_session.add = MagicMock()
     mock_result = MagicMock()
     mock_result.scalar_one_or_none.return_value = doc
     mock_session.execute.return_value = mock_result
@@ -108,6 +109,7 @@ async def test_async_process_document_image() -> None:
     mock_storage.download_bytes.return_value = image_data
 
     mock_session = AsyncMock()
+    mock_session.add = MagicMock()
     mock_result = MagicMock()
     mock_result.scalar_one_or_none.return_value = doc
     mock_session.execute.return_value = mock_result
