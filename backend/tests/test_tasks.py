@@ -65,15 +65,22 @@ async def test_async_process_document_success() -> None:
     mock_context.__aenter__.return_value = mock_session
     mock_context.__aexit__.return_value = None
 
+    mock_classification = MagicMock()
+    mock_classification.doc_type.value = "other"
+
     with (
         patch("backend.app.workers.tasks.StorageService", return_value=mock_storage),
         patch("backend.app.workers.tasks.AsyncSessionLocal", return_value=mock_context),
+        patch(
+            "backend.app.services.extraction.ExtractionService.classify_document",
+            return_value=mock_classification,
+        ),
     ):
         result = await _async_process_document(str(doc_id), str(tenant_id))
 
     assert result["document_id"] == str(doc_id)
     assert result["page_count"] == 2
-    assert doc.status == DocumentStatus.EXTRACTING
+    assert doc.status == DocumentStatus.INDEXING
     assert doc.page_count == 2
     # Storage should have received 2 uploaded page files
     assert mock_storage.upload_bytes.call_count == 2
@@ -109,14 +116,21 @@ async def test_async_process_document_image() -> None:
     mock_context.__aenter__.return_value = mock_session
     mock_context.__aexit__.return_value = None
 
+    mock_classification = MagicMock()
+    mock_classification.doc_type.value = "other"
+
     with (
         patch("backend.app.workers.tasks.StorageService", return_value=mock_storage),
         patch("backend.app.workers.tasks.AsyncSessionLocal", return_value=mock_context),
+        patch(
+            "backend.app.services.extraction.ExtractionService.classify_document",
+            return_value=mock_classification,
+        ),
     ):
         result = await _async_process_document(str(doc_id), str(tenant_id))
 
     assert result["page_count"] == 1
-    assert doc.status == DocumentStatus.EXTRACTING
+    assert doc.status == DocumentStatus.INDEXING
     assert doc.page_count == 1
     assert mock_storage.upload_bytes.call_count == 1
 

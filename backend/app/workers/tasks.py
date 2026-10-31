@@ -126,20 +126,137 @@ async def _async_process_document(document_id_str: str, tenant_id_str: str) -> d
             session, tenant_id, document_id, DocumentStatus.EXTRACTING
         )
 
+        # 8. Run Document Classification & Extraction
+        from backend.app.db.models import Contract, ExtractedFieldModel, FieldStatus, Invoice
+        from backend.app.schemas.extraction import DocumentType
+        from backend.app.services.extraction import ExtractionService
+
+        extraction_service = ExtractionService()
+
+        # Combine text across all pages for full document understanding
+        full_text = "\n\n".join(
+            [text_part for _, _, text_part in pages_to_create if text_part]
+        )
+
+        classification = extraction_service.classify_document(full_text)
+        doc.doc_type = classification.doc_type.value
+
+        any_low_confidence = False
+        CONFIDENCE_THRESHOLD = 0.85
+
+        if classification.doc_type == DocumentType.INVOICE:
+            inv = extraction_service.extract_invoice(full_text)
+
+            # Persist typed invoice table for Text-to-SQL (Phase 8)
+            invoice_record = Invoice(
+                id=uuid.uuid4(),
+                tenant_id=tenant_id,
+                document_id=document_id,
+                vendor_name=inv.vendor_name.value,
+                customer_name=inv.customer_name.value,
+                invoice_number=inv.invoice_number.value,
+                invoice_date=inv.invoice_date.value,
+                due_date=inv.due_date.value,
+                currency=inv.currency.value or "USD",
+                subtotal=inv.subtotal.value,
+                tax_amount=inv.tax_amount.value,
+                total_amount=inv.total_amount.value,
+                line_items=[item.model_dump() for item in inv.line_items],
+            )
+            session.add(invoice_record)
+
+            # Persist extracted_fields for human review queue & auditing (Phase 3)
+            for field_name in [
+                "vendor_name",
+                "customer_name",
+                "invoice_number",
+                "invoice_date",
+                "due_date",
+                "total_amount",
+            ]:
+                extracted_item = getattr(inv, field_name)
+                is_low = extracted_item.confidence < CONFIDENCE_THRESHOLD
+                if is_low:
+                    any_low_confidence = True
+
+                session.add(
+                    ExtractedFieldModel(
+                        id=uuid.uuid4(),
+                        tenant_id=tenant_id,
+                        document_id=document_id,
+                        field_name=field_name,
+                        field_value=str(extracted_item.value)
+                        if extracted_item.value is not None
+                        else None,
+                        confidence=extracted_item.confidence,
+                        source_page=extracted_item.page_no,
+                        bbox=extracted_item.bbox,
+                        status=FieldStatus.NEEDS_REVIEW if is_low else FieldStatus.AUTO,
+                    )
+                )
+
+        elif classification.doc_type == DocumentType.CONTRACT:
+            contract_data = extraction_service.extract_contract(full_text)
+
+            contract_record = Contract(
+                id=uuid.uuid4(),
+                tenant_id=tenant_id,
+                document_id=document_id,
+                title=contract_data.title.value,
+                parties=contract_data.parties,
+                effective_date=contract_data.effective_date.value,
+                expiration_date=contract_data.expiration_date.value,
+                term_length=contract_data.term_length.value,
+                governing_law=contract_data.governing_law.value,
+            )
+            session.add(contract_record)
+
+            for field_name in ["title", "effective_date", "expiration_date", "governing_law"]:
+                extracted_item = getattr(contract_data, field_name)
+                is_low = extracted_item.confidence < CONFIDENCE_THRESHOLD
+                if is_low:
+                    any_low_confidence = True
+
+                session.add(
+                    ExtractedFieldModel(
+                        id=uuid.uuid4(),
+                        tenant_id=tenant_id,
+                        document_id=document_id,
+                        field_name=field_name,
+                        field_value=str(extracted_item.value)
+                        if extracted_item.value is not None
+                        else None,
+                        confidence=extracted_item.confidence,
+                        source_page=extracted_item.page_no,
+                        bbox=extracted_item.bbox,
+                        status=FieldStatus.NEEDS_REVIEW if is_low else FieldStatus.AUTO,
+                    )
+                )
+
+        # 9. Status transition based on extraction confidence:
+        # If low confidence -> NEEDS_REVIEW (Phase 3 review queue)
+        # If all high confidence -> INDEXING (Phase 4 chunking/vector search)
+        next_status = (
+            DocumentStatus.NEEDS_REVIEW if any_low_confidence else DocumentStatus.INDEXING
+        )
+        doc = await doc_service.transition_status(session, tenant_id, document_id, next_status)
+
         await session.commit()
 
         logger.info(
-            "Document parsed and split successfully",
+            "Document parsed and extracted successfully",
             extra={
                 "tenant_id": str(tenant_id),
                 "document_id": str(document_id),
-                "page_count": len(pages_to_create),
+                "doc_type": doc.doc_type,
+                "status": doc.status.value,
             },
         )
 
         return {
             "document_id": str(document_id),
             "tenant_id": str(tenant_id),
+            "doc_type": doc.doc_type,
             "status": doc.status.value,
             "page_count": doc.page_count,
         }
