@@ -39,13 +39,54 @@ def test_parse_page_fast_path_native_pdf() -> None:
     assert result.layout_json == {"source": "native_pdf", "blocks": []}
 
 
+def test_parse_page_native_pdf_with_tables() -> None:
+    service = OCRService()
+    sufficient_text = "Invoice summary for services rendered in October 2026."
+
+    mock_table_data = [
+        ["Item Description", "Qty", "Price", "Total"],
+        ["Cloud Server", "2", "$50.00", "$100.00"],
+    ]
+
+    mock_pdf = MagicMock()
+    mock_page = MagicMock()
+    mock_page.extract_tables.return_value = [mock_table_data]
+    mock_pdf.pages = [mock_page]
+    mock_pdf.__enter__.return_value = mock_pdf
+    mock_pdf.__exit__.return_value = None
+
+    with patch("pdfplumber.open", return_value=mock_pdf):
+        result = service.parse_page(
+            page_bytes=b"fake_pdf_data",
+            mime_type="application/pdf",
+            existing_text=sufficient_text,
+        )
+
+    assert result.engine == "pdfplumber"
+    assert result.used_vision_fallback is False
+    assert "| Item Description | Qty | Price | Total |" in result.text
+    assert result.layout_json is not None
+    assert len(result.layout_json["blocks"]) == 1
+    table_block = result.layout_json["blocks"][0]
+    assert table_block["type"] == "table"
+    assert table_block["table_data"]["headers"] == ["Item Description", "Qty", "Price", "Total"]
+
+
 def test_parse_page_vision_fallback_success() -> None:
     service = OCRService()
     mock_payload = {
-        "text": "Extracted Invoice Total: $500",
+        "text": "Invoice Header\n| Item | Amount |\n| --- | --- |\n| Widget | $500 |",
         "blocks": [
             {"type": "header", "text": "Invoice Header", "confidence": 0.98},
-            {"type": "key_value", "text": "Total: $500", "confidence": 0.95},
+            {
+                "type": "table",
+                "text": "| Item | Amount |\n| --- | --- |\n| Widget | $500 |",
+                "confidence": 0.95,
+                "table_data": {
+                    "headers": ["Item", "Amount"],
+                    "rows": [["Widget", "$500"]],
+                },
+            },
         ],
         "confidence": 0.96,
     }
@@ -66,7 +107,7 @@ def test_parse_page_vision_fallback_success() -> None:
         assert result.used_vision_fallback is True
         assert "vision:" in result.engine
         assert result.confidence == 0.96
-        assert result.text == "Extracted Invoice Total: $500"
+        assert "| Item | Amount |" in result.text
         assert result.layout_json == mock_payload
 
 
