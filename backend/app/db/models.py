@@ -1,12 +1,14 @@
 import enum
 import uuid
 
+from pgvector.sqlalchemy import Vector
 from sqlalchemy import (
     JSON,
     Boolean,
     Enum,
     Float,
     ForeignKey,
+    Index,
     Integer,
     String,
     Text,
@@ -129,6 +131,9 @@ class Document(Base, UUIDPrimaryKeyMixin, TimestampMixin):
 
     pages: Mapped[list["DocumentPage"]] = relationship(
         "DocumentPage", back_populates="document", cascade="all, delete-orphan"
+    )
+    chunks: Mapped[list["DocumentChunk"]] = relationship(
+        "DocumentChunk", back_populates="document", cascade="all, delete-orphan"
     )
 
 class DocumentPage(Base, UUIDPrimaryKeyMixin, TimestampMixin):
@@ -323,4 +328,39 @@ class AuditLog(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     user: Mapped["User | None"] = relationship("User")
 
 
+class DocumentChunk(Base, UUIDPrimaryKeyMixin, TimestampMixin):
+    __tablename__ = "document_chunks"
+    __table_args__ = (
+        Index("ix_document_chunks_tenant_doc_idx", "tenant_id", "document_id", "chunk_index"),
+        Index(
+            "ix_document_chunks_embedding",
+            "embedding",
+            postgresql_using="hnsw",
+            postgresql_with={"m": 16, "ef_construction": 64},
+            postgresql_ops={"embedding": "vector_cosine_ops"},
+        ),
+    )
+
+    tenant_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid(as_uuid=True),
+        ForeignKey("tenants.id", ondelete="CASCADE"),
+        index=True,
+        nullable=False,
+    )
+    document_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid(as_uuid=True),
+        ForeignKey("documents.id", ondelete="CASCADE"),
+        index=True,
+        nullable=False,
+    )
+    page_number: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    chunk_index: Mapped[int] = mapped_column(Integer, nullable=False)
+    chunk_type: Mapped[str] = mapped_column(String(50), default="text", nullable=False)
+    content: Mapped[str] = mapped_column(Text, nullable=False)
+    metadata_json: Mapped[dict[str, object] | None] = mapped_column(JSON, nullable=True)
+    embedding: Mapped[list[float] | None] = mapped_column(Vector(768), nullable=True)
+
+    # Relationships
+    tenant: Mapped["Tenant"] = relationship("Tenant")
+    document: Mapped["Document"] = relationship("Document", back_populates="chunks")
 

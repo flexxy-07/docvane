@@ -347,3 +347,10 @@ class ReviewService:
             await self.doc_service.transition_status(
                 session, tenant_id, document_id, DocumentStatus.INDEXING
             )
+            try:
+                from backend.app.workers.tasks import index_document
+
+                index_document.delay(str(document_id), str(tenant_id))
+            except Exception as exc:
+                logger.warning("Could not dispatch index_document task: %s", str(exc))
+

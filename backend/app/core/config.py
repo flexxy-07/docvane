@@ -38,7 +38,8 @@ class Settings(BaseSettings):
     # LLM Settings
     GEMINI_API_KEY: str = ""
     DEFAULT_LLM_MODEL: str = "gemini/gemini-1.5-flash"
-    EMBEDDING_MODEL: str = "BAAI/bge-small-en-v1.5"
+    EMBEDDING_MODEL: str = "text-embedding-004"
+    EMBEDDING_DIM: int = 768
     RERANKER_MODEL: str = "BAAI/bge-reranker-base"
 
     # Observability

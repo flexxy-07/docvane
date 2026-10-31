@@ -5,8 +5,9 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from pypdf import PdfWriter
 
-from backend.app.db.models import Document, DocumentStatus
+from backend.app.db.models import Document, DocumentPage, DocumentStatus
 from backend.app.workers.tasks import (
+    _async_index_document,
     _async_process_document,
     process_document,
     split_pdf_into_pages,
@@ -156,3 +157,67 @@ def test_celery_task_retry_and_failure() -> None:
 
     # Verify mark failed helper was triggered on final retry
     mock_mark_failed.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_async_index_document() -> None:
+    tenant_id = uuid.uuid4()
+    doc_id = uuid.uuid4()
+
+    doc = Document(
+        id=doc_id,
+        tenant_id=tenant_id,
+        filename="contract.pdf",
+        file_type="pdf",
+        status=DocumentStatus.INDEXING,
+        storage_key=f"{tenant_id}/{doc_id}/contract.pdf",
+        checksum="checksum123",
+        file_size_bytes=2048,
+        page_count=1,
+    )
+
+    page = DocumentPage(
+        id=uuid.uuid4(),
+        tenant_id=tenant_id,
+        document_id=doc_id,
+        page_no=1,
+        ocr_text=(
+            "Section 1. Agreement Terms\n\nThis agreement is made between Party A and Party B."
+        ),
+    )
+
+    mock_session = AsyncMock()
+    mock_session.add = MagicMock()
+
+    # Query 1: fetch doc
+    doc_res = MagicMock()
+    doc_res.scalar_one_or_none.return_value = doc
+
+    # Query 2: fetch pages
+    pages_res = MagicMock()
+    pages_res.scalars.return_value.all.return_value = [page]
+
+    # Query 3: delete previous chunks
+    del_res = MagicMock()
+
+    mock_session.execute.side_effect = [
+        MagicMock(),  # set_config
+        doc_res,      # select doc
+        pages_res,    # select pages
+        del_res,      # delete chunks
+        doc_res,      # transition_status select doc
+    ]
+
+    mock_context = MagicMock()
+    mock_context.__aenter__.return_value = mock_session
+    mock_context.__aexit__.return_value = None
+
+    with patch("backend.app.workers.tasks.AsyncSessionLocal", return_value=mock_context):
+        result = await _async_index_document(str(doc_id), str(tenant_id))
+
+    assert result["document_id"] == str(doc_id)
+    assert result["status"] == "ready"
+    assert result["chunk_count"] >= 1
+    assert doc.status == DocumentStatus.READY
+    assert mock_session.add.called
+
