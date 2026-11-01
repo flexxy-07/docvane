@@ -364,3 +364,28 @@ class DocumentChunk(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     tenant: Mapped["Tenant"] = relationship("Tenant")
     document: Mapped["Document"] = relationship("Document", back_populates="chunks")
 
+
+class QueryLog(Base, UUIDPrimaryKeyMixin, TimestampMixin):
+    __tablename__ = "query_logs"
+    __table_args__ = (
+        Index("ix_query_logs_tenant_created", "tenant_id", "created_at"),
+    )
+
+    tenant_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid(as_uuid=True),
+        ForeignKey("tenants.id", ondelete="CASCADE"),
+        index=True,
+        nullable=False,
+    )
+    question: Mapped[str] = mapped_column(Text, nullable=False)
+    strategy: Mapped[str] = mapped_column(String(50), nullable=False)
+    route: Mapped[str] = mapped_column(String(50), default="rag", nullable=False)
+    filters: Mapped[dict[str, object] | None] = mapped_column(JSON, nullable=True)
+    retrieved_chunk_ids: Mapped[list[str] | None] = mapped_column(JSON, nullable=True)
+    top_score: Mapped[float | None] = mapped_column(Float, nullable=True)
+    latency_ms: Mapped[float] = mapped_column(Float, default=0.0, nullable=False)
+    token_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
+
+    # Relationships
+    tenant: Mapped["Tenant"] = relationship("Tenant")
+
