@@ -1,9 +1,14 @@
 import uuid
 from collections.abc import AsyncGenerator
+from typing import TYPE_CHECKING
 
 from fastapi import Depends, HTTPException, Request, status
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
+
+if TYPE_CHECKING:
+    from backend.app.services.filter_extraction import QueryFilterExtractor
+    from backend.app.services.retrieval import RetrievalService
 
 from backend.app.db.session import AsyncSessionLocal
 from backend.app.services.storage import StorageService, get_storage_service
@@ -61,3 +66,17 @@ def get_optional_user_id(request: Request) -> uuid.UUID | None:
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Invalid 'X-User-ID' header: must be a valid UUID format",
         ) from None
+
+
+def get_retrieval_service() -> "RetrievalService":
+    """Dependency provider for the retrieval service."""
+    from backend.app.services.retrieval import RetrievalService
+
+    return RetrievalService()
+
+
+def get_filter_extractor() -> "QueryFilterExtractor":
+    """Dependency provider for the query filter extractor."""
+    from backend.app.services.filter_extraction import QueryFilterExtractor
+
+    return QueryFilterExtractor()
