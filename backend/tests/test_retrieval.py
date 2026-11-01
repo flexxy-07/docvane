@@ -1,5 +1,5 @@
 import uuid
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
@@ -145,3 +145,92 @@ async def test_search_coordinator_strategies() -> None:
     assert len(results_hybrid) == 2
     for item in results_hybrid:
         assert item.match_type == "hybrid"
+
+    # 4. Test HYBRID_RERANK strategy
+    mock_reranked = [_create_mock_chunk(uuid.uuid4(), doc_id, "Reranked chunk", 0.95, "reranked")]
+    service.reranker.rerank = MagicMock(return_value=mock_reranked)
+
+    results_rerank = await service.search(
+        session=mock_session,
+        tenant_id=tenant_id,
+        query="test query",
+        strategy=RetrievalStrategy.HYBRID_RERANK,
+        top_k=5,
+        log_query=False,
+    )
+    assert len(results_rerank) == 1
+    assert results_rerank[0].match_type == "reranked"
+    service.reranker.rerank.assert_called_once()
+
+
+def test_query_filter_extractor_invoice() -> None:
+    from backend.app.services.filter_extraction import QueryFilterExtractor
+
+    extractor = QueryFilterExtractor()
+    query = "Show me the line items breakdown in the Acme Corp invoice from 2024 on page 2"
+    result = extractor.extract(query)
+
+    assert result.doc_type == "invoice"
+    assert result.vendor_name == "Acme Corp"
+    assert result.year == 2024
+    assert result.page_number == 2
+    assert result.filters.chunk_types == ["table"]
+    assert result.filters.page_number == 2
+    assert result.filters.metadata_filters == {
+        "doc_type": "invoice",
+        "year": 2024,
+        "vendor_name": "Acme Corp",
+    }
+    assert "invoice" not in result.cleaned_query.lower()
+    assert "2024" not in result.cleaned_query
+
+
+def test_query_filter_extractor_contract() -> None:
+    from backend.app.services.filter_extraction import QueryFilterExtractor
+
+    extractor = QueryFilterExtractor()
+    query = "What are the termination terms in the NDA agreement with Globex?"
+    result = extractor.extract(query)
+
+    assert result.doc_type == "contract"
+    assert result.vendor_name == "Globex"
+    assert result.filters.metadata_filters == {
+        "doc_type": "contract",
+        "vendor_name": "Globex",
+    }
+
+
+def test_reranker_service_real_model() -> None:
+    from backend.app.services.reranker import RerankerService
+
+    doc_id = uuid.uuid4()
+    # Candidate 1: completely irrelevant distractor
+    c1 = _create_mock_chunk(
+        uuid.uuid4(), doc_id, "The weather is sunny in California.", 0.8, "hybrid"
+    )
+    # Candidate 2: highly relevant text answering query
+    c2 = _create_mock_chunk(
+        uuid.uuid4(),
+        doc_id,
+        "Payment terms are net 30 days after invoice issuance.",
+        0.5,
+        "hybrid",
+    )
+
+    # Test with the REAL BAAI/bge-reranker-base neural cross-encoder
+    reranker = RerankerService(enable_model=True)
+
+    reranked = reranker.rerank(
+        query="payment terms net 30",
+        candidates=[c1, c2],
+        top_k=2,
+    )
+
+    assert len(reranked) == 2
+    # The neural model must rank candidate 2 at #1
+    assert reranked[0].chunk_id == c2.chunk_id
+    assert reranked[0].match_type == "reranked"
+    assert reranked[0].score > reranked[1].score
+    # High confidence for relevant text (> 0.80), near zero for irrelevant distractor (< 0.05)
+    assert reranked[0].score > 0.80
+    assert reranked[1].score < 0.05

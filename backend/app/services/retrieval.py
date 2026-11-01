@@ -32,7 +32,7 @@ class RetrievedChunk:
     chunk_type: str
     content: str
     score: float
-    match_type: str  # "vector", "keyword", or "hybrid"
+    match_type: str  # "vector", "keyword", "hybrid", or "reranked"
     metadata_json: dict[str, Any] = field(default_factory=dict)
 
 
@@ -64,11 +64,26 @@ class RetrievalService:
     1. Vector search via pgvector cosine distance (<=>).
     2. Full-text keyword search via PostgreSQL tsvector/ts_rank_cd.
     3. Reciprocal Rank Fusion (RRF) to merge candidate rankings.
-    4. Persists search audit trails to query_logs.
+    4. Cross-encoder reranker over top candidates for HYBRID_RERANK.
+    5. Persists search audit trails to query_logs.
     """
 
-    def __init__(self, embedding_service: EmbeddingService | None = None) -> None:
+    def __init__(
+        self,
+        embedding_service: EmbeddingService | None = None,
+        reranker: Any | None = None,
+    ) -> None:
         self.embedding_service = embedding_service or EmbeddingService()
+        self._reranker = reranker
+
+    @property
+    def reranker(self) -> Any:
+        """Lazy-loads the RerankerService to avoid circular import."""
+        if self._reranker is None:
+            from backend.app.services.reranker import RerankerService
+
+            self._reranker = RerankerService()
+        return self._reranker
 
     def _apply_filters(self, stmt: Any, filters: RetrievalFilter | None) -> Any:
         if not filters:
@@ -251,7 +266,7 @@ class RetrievalService:
             results = await self.keyword_search(
                 session, tenant_id, query, top_k=top_k, filters=filters
             )
-        elif strategy in (RetrievalStrategy.HYBRID_RRF, RetrievalStrategy.HYBRID_RERANK):
+        elif strategy == RetrievalStrategy.HYBRID_RRF:
             fetch_limit = max(top_k * 2, 10)
             vec_candidates = await self.vector_search(
                 session, tenant_id, query, top_k=fetch_limit, filters=filters
@@ -261,6 +276,16 @@ class RetrievalService:
             )
             merged = self.reciprocal_rank_fusion([vec_candidates, kw_candidates], k=60)
             results = merged[:top_k]
+        elif strategy == RetrievalStrategy.HYBRID_RERANK:
+            fetch_limit = max(top_k * 3, 15)
+            vec_candidates = await self.vector_search(
+                session, tenant_id, query, top_k=fetch_limit, filters=filters
+            )
+            kw_candidates = await self.keyword_search(
+                session, tenant_id, query, top_k=fetch_limit, filters=filters
+            )
+            merged = self.reciprocal_rank_fusion([vec_candidates, kw_candidates], k=60)
+            results = self.reranker.rerank(query, merged, top_k=top_k)
 
         latency_ms = round((time.perf_counter() - start_time) * 1000.0, 2)
 
