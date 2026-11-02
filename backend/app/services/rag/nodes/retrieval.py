@@ -1,3 +1,4 @@
+import inspect
 import logging
 import time
 import uuid
@@ -89,11 +90,15 @@ async def retrieve_node(
             if ranked_runs:
                 fused = RetrievalService.reciprocal_rank_fusion(ranked_runs)
                 # Final rerank against the primary original question
-                chunks_to_export = await retrieval_service.reranker.rerank(
+                rerank_out = retrieval_service.reranker.rerank(
                     query=question,
                     chunks=fused,
                     top_k=top_k,
                 )
+                if inspect.isawaitable(rerank_out):
+                    chunks_to_export = await rerank_out
+                else:
+                    chunks_to_export = rerank_out
         else:
             # Single-query direct hybrid search + rerank
             chunks_to_export = await retrieval_service.search(

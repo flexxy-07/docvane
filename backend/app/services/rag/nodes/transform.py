@@ -121,19 +121,33 @@ class QueryTransformer:
 def transform_query_node(state: RagState) -> RagState:
     """
     LangGraph node: Expands and rewrites the query for downstream multi-query retrieval.
+    On corrective retries (grade=='irrelevant'), incorporates HyDE and increments retry_count.
     """
     t0 = time.perf_counter()
     transformer = QueryTransformer()
     question = state.get("question", "")
     expanded = transformer.expand_queries(question)
-    elapsed_ms = round((time.perf_counter() - t0) * 1000.0, 3)
 
+    current_retries = state.get("retry_count", 0)
+    if state.get("grade") == "irrelevant":
+        current_retries += 1
+        hyde_doc = transformer.generate_hyde(question)
+        if hyde_doc not in expanded:
+            expanded.append(hyde_doc)
+
+    elapsed_ms = round((time.perf_counter() - t0) * 1000.0, 3)
     latencies = state.get("node_latencies", {}).copy()
     latencies["transform_query_node"] = elapsed_ms
 
-    logger.info("Transformed query into %d variants in %.3fms", len(expanded), elapsed_ms)
+    logger.info(
+        "Transformed query into %d variants (retry_count=%d) in %.3fms",
+        len(expanded),
+        current_retries,
+        elapsed_ms,
+    )
     return {
         **state,
         "rewritten_queries": expanded,
+        "retry_count": current_retries,
         "node_latencies": latencies,
     }
