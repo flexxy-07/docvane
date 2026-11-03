@@ -155,3 +155,82 @@ async def test_graph_corrective_retry_loop_on_irrelevant_chunks() -> None:
     assert "generate_node" in latencies
     assert "check_answer_support_node" in latencies
 
+
+@pytest.mark.asyncio
+async def test_graph_sql_route() -> None:
+    """Verifies quantitative aggregation questions route directly to Text-to-SQL sub-graph."""
+    mock_session = MagicMock()
+    mock_db_res = MagicMock()
+    mock_db_res.mappings.return_value.all.return_value = [
+        {"total_invoiced": 78900.50, "invoice_count": 8}
+    ]
+    mock_session.execute = AsyncMock(return_value=mock_db_res)
+
+    result = await execute_rag_pipeline(
+        question="What is the total amount invoiced across all vendors in 2024?",
+        tenant_id=str(uuid.uuid4()),
+        session=mock_session,
+    )
+
+    assert result["route"] == "sql"
+    assert result.get("sql_query") is not None
+    assert "SUM(total_amount)" in (result.get("sql_query") or "")
+    assert "$78,900.50" in (result.get("answer") or "")
+
+    latencies = result.get("node_latencies", {})
+    assert "router_node" in latencies
+    assert "sql_node" in latencies
+    assert "retrieve_node" not in latencies
+    assert "generate_node" not in latencies
+
+
+@pytest.mark.asyncio
+async def test_graph_both_route_hybrid_execution() -> None:
+    """
+    Verifies questions requiring both aggregations and qualitative text route to
+    sql_node first, then flow through transform -> retrieve -> grade -> generate.
+    """
+    mock_session = MagicMock()
+    mock_db_res = MagicMock()
+    mock_db_res.mappings.return_value.all.return_value = [
+        {"total_invoiced": 45000.0}
+    ]
+    mock_session.execute = AsyncMock(return_value=mock_db_res)
+
+    mock_retrieval_service = MagicMock()
+    mock_chunk = RetrievedChunk(
+        chunk_id=uuid.uuid4(),
+        document_id=uuid.uuid4(),
+        page_number=2,
+        chunk_index=0,
+        chunk_type="text",
+        content="Payment terms: Invoices are payable net 30 days from invoice date.",
+        score=0.91,
+        match_type="hybrid_reranked",
+        metadata_json={},
+    )
+    mock_retrieval_service.search = AsyncMock(return_value=[mock_chunk])
+
+    result = await execute_rag_pipeline(
+        question="What is the total amount invoiced and what do the payment terms say?",
+        tenant_id=str(uuid.uuid4()),
+        session=mock_session,
+        retrieval_service=mock_retrieval_service,
+    )
+
+    assert result["route"] == "both"
+    assert result.get("sql_query") is not None
+    assert "$45,000.00" in (result.get("answer") or "")
+    ans = (result.get("answer") or "").lower()
+    assert "net 30 days" in ans or "document analysis" in ans
+
+    latencies = result.get("node_latencies", {})
+    assert "router_node" in latencies
+    assert "sql_node" in latencies
+    assert "transform_query_node" in latencies
+    assert "retrieve_node" in latencies
+    assert "grade_passages_node" in latencies
+    assert "generate_node" in latencies
+    assert "check_answer_support_node" in latencies
+
+

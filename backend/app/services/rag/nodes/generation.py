@@ -98,7 +98,12 @@ def generate_node(state: RagState) -> RagState:
     question = state.get("question", "")
     chunks = state.get("retrieved_chunks", [])
 
-    answer = generator.generate(question, chunks)
+    doc_answer = generator.generate(question, chunks)
+    sql_answer = state.get("answer")
+    if sql_answer:
+        final_answer = f"{sql_answer}\n\n### Document Analysis:\n{doc_answer}"
+    else:
+        final_answer = doc_answer
 
     citations: list[dict[str, Any]] = [
         {
@@ -119,7 +124,7 @@ def generate_node(state: RagState) -> RagState:
 
     return {
         **state,
-        "answer": answer,
+        "answer": final_answer,
         "citations": citations,
         "node_latencies": latencies,
     }
