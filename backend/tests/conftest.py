@@ -1,12 +1,6 @@
-from collections.abc import AsyncGenerator
+import os
 
-import pytest
-
-from backend.app.db.session import engine
-
-
-@pytest.fixture(autouse=True)
-async def cleanup_db_engine() -> AsyncGenerator[None, None]:
-    """Ensures database connections in the connection pool are closed before loop closes."""
-    yield
-    await engine.dispose()
+# Ensure litellm does not make blocking network calls to remote price maps during test execution
+os.environ["LITELLM_LOCAL_MODEL_COST_MAP"] = "True"
+os.environ["LITELLM_MODE"] = "OFFLINE"
+os.environ["ANONYMOUS_TELEMETRY"] = "False"
