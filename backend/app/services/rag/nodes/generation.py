@@ -112,6 +112,7 @@ def generate_node(state: RagState) -> RagState:
             "page_number": c.get("page_number"),
             "score": c.get("score"),
             "match_type": c.get("match_type"),
+            "content": c.get("content"),
         }
         for c in chunks[:5]
     ]

@@ -151,7 +151,7 @@ def validate_sql_node(state: SqlState) -> SqlState:
     """
     t0 = time.perf_counter()
     validator = SqlValidator()
-    sql = state.get("sql_query", "")
+    sql = state.get("sql_query") or ""
     tenant_id = state.get("tenant_id", "")
 
     result = validator.validate_and_sanitize(sql, tenant_id)

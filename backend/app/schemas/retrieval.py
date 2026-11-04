@@ -69,3 +69,54 @@ class SearchResponse(BaseModel):
     latency_ms: float
     total_results: int
     results: list[RetrievedChunkResponse]
+
+
+class CitationResponse(BaseModel):
+    """Citation referencing a specific document, page, and chunk excerpt."""
+
+    chunk_id: str | None = None
+    document_id: str | None = None
+    page_number: int | None = None
+    score: float | None = None
+    match_type: str | None = None
+    content: str | None = None
+
+
+class ChatRequest(BaseModel):
+    """Payload for asking questions to the Self-Correcting RAG & Text-to-SQL pipeline."""
+
+    question: str = Field(
+        ...,
+        min_length=1,
+        max_length=2000,
+        description="Natural language question or query",
+        examples=["What is the total amount due across all Acme invoices?"],
+    )
+    top_k: int = Field(
+        default=5,
+        ge=1,
+        le=50,
+        description="Number of highest-ranking chunks to retrieve",
+    )
+    max_retries: int = Field(
+        default=2,
+        ge=0,
+        le=5,
+        description="Maximum corrective retry loops for passage grading",
+    )
+
+
+class ChatResponse(BaseModel):
+    """Complete response from the Self-Correcting LangGraph RAG pipeline."""
+
+    question: str
+    answer: str
+    route: str = Field(
+        description="Branch selected by query router: direct | simple | transform | sql | both"
+    )
+    citations: list[CitationResponse] = Field(default_factory=list)
+    sql_query: str | None = None
+    rewritten_queries: list[str] = Field(default_factory=list)
+    retry_count: int = 0
+    node_latencies: dict[str, float] = Field(default_factory=dict)
+

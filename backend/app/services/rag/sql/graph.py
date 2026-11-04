@@ -1,6 +1,7 @@
 import logging
 from typing import Any, cast
 
+from langchain_core.runnables import RunnableConfig
 from langgraph.graph import END, START, StateGraph
 from langgraph.graph.state import CompiledStateGraph
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -118,7 +119,7 @@ async def execute_sql_pipeline(
         "node_latencies": {},
     }
 
-    config = {
+    config: RunnableConfig = {
         "recursion_limit": 10,
         "configurable": {
             "session": session,

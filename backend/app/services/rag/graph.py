@@ -197,7 +197,7 @@ async def execute_rag_pipeline(
         "retry_count": 0,
     }
 
-    config = {
+    config: RunnableConfig = {
         "recursion_limit": 15,
         "configurable": {
             "session": session,

@@ -11,11 +11,15 @@ from backend.app.api.deps import (
     get_tenant_db,
 )
 from backend.app.schemas.retrieval import (
+    ChatRequest,
+    ChatResponse,
+    CitationResponse,
     RetrievedChunkResponse,
     SearchRequest,
     SearchResponse,
 )
 from backend.app.services.filter_extraction import QueryFilterExtractor
+from backend.app.services.rag.graph import execute_rag_pipeline
 from backend.app.services.retrieval import RetrievalFilter, RetrievalService
 
 router = APIRouter(prefix="/retrieval", tags=["retrieval"])
@@ -105,3 +109,54 @@ async def search_documents(
             for c in chunks
         ],
     )
+
+
+@router.post(
+    "/chat",
+    response_model=ChatResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Self-Correcting RAG & Text-to-SQL Chat endpoint",
+    description=(
+        "Executes the full LangGraph stateful orchestration pipeline over documents "
+        "and structured database tables with adaptive routing, CRAG grading, "
+        "Self-RAG answer verification, and citations."
+    ),
+)
+async def chat_with_documents(
+    payload: ChatRequest,
+    tenant_id: uuid.UUID = Depends(get_current_tenant_id),
+    session: AsyncSession = Depends(get_tenant_db),
+    retrieval_service: RetrievalService = Depends(get_retrieval_service),
+) -> ChatResponse:
+    state = await execute_rag_pipeline(
+        question=payload.question,
+        tenant_id=str(tenant_id),
+        session=session,
+        retrieval_service=retrieval_service,
+        top_k=payload.top_k,
+        max_retries=payload.max_retries,
+    )
+
+    citations = [
+        CitationResponse(
+            chunk_id=str(c.get("chunk_id")) if c.get("chunk_id") else None,
+            document_id=str(c.get("document_id")) if c.get("document_id") else None,
+            page_number=c.get("page_number"),
+            score=c.get("score"),
+            match_type=c.get("match_type"),
+            content=c.get("content"),
+        )
+        for c in state.get("citations", [])
+    ]
+
+    return ChatResponse(
+        question=state.get("question", payload.question),
+        answer=state.get("answer") or "I could not generate an answer for your inquiry.",
+        route=state.get("route", "simple"),
+        citations=citations,
+        sql_query=state.get("sql_query"),
+        rewritten_queries=state.get("rewritten_queries", []),
+        retry_count=state.get("retry_count", 0),
+        node_latencies=state.get("node_latencies", {}),
+    )
+
