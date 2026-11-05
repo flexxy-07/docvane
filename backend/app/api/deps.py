@@ -2,7 +2,7 @@ import uuid
 from collections.abc import AsyncGenerator
 from typing import TYPE_CHECKING
 
-from fastapi import Depends, HTTPException, Request, status
+from fastapi import Depends, Header, HTTPException, Request, status
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -14,26 +14,31 @@ from backend.app.db.session import AsyncSessionLocal
 from backend.app.services.storage import StorageService, get_storage_service
 
 
-def get_current_tenant_id(request: Request) -> uuid.UUID:
+def get_current_tenant_id(
+    x_tenant_id: str | None = Header(
+        default=None,
+        alias="X-Tenant-ID",
+        description="Tenant UUID for multi-tenant isolation",
+    ),
+) -> uuid.UUID:
     """Extract and validate tenant ID from request headers."""
-
-    tenant_header = request.headers.get("X-Tenant-ID")
-    if not tenant_header:
-      raise HTTPException(
-        status_code=status.HTTP_400_BAD_REQUEST,
-        detail="Missing required header 'X-Tenant-ID'"
-      )
+    if not x_tenant_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Missing required header 'X-Tenant-ID'",
+        )
 
     try:
-        return uuid.UUID(tenant_header)
+        return uuid.UUID(x_tenant_id)
     except (ValueError, AttributeError):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Invalid 'X-Tenant-ID' header: must be a valid UUID format",
         ) from None
 
+
 async def get_tenant_db(
-  tenant_id: uuid.UUID = Depends(get_current_tenant_id),
+    tenant_id: uuid.UUID = Depends(get_current_tenant_id),
 ) -> AsyncGenerator[AsyncSession, None]:
     """
     Provides an AsyncSession bound to the current tenant for Row-Level Security (RLS).
@@ -48,6 +53,7 @@ async def get_tenant_db(
             yield session
         finally:
             await session.close()
+
 
 def get_storage() -> StorageService:
     """Dependency provider for the storage service."""
