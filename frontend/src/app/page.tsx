@@ -544,7 +544,7 @@ export default function Home() {
 
         {/* Bottom Bar: Copyright & Terms */}
         <div className="max-w-6xl mx-auto mt-16 pt-8 border-t border-white/5 flex flex-col sm:flex-row items-center justify-between text-xs text-[#6B7280] gap-4">
-          <p>© {new Date().getFullYear()} DocVane Intelligence. All rights reserved.</p>
+          <p>© {new Date().getFullYear()} DocVane. All rights reserved.</p>
           <div className="flex items-center gap-6">
             <span className="hover:text-white cursor-pointer">TERMS OF SERVICE</span>
             <span className="hover:text-white cursor-pointer">PRIVACY POLICY</span>

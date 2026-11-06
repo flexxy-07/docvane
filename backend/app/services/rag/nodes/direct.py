@@ -7,7 +7,7 @@ from backend.app.services.rag.state import RagState
 logger = logging.getLogger(__name__)
 
 CAPABILITIES_OVERVIEW = (
-    "I am **Docvane**, your Document Intelligence & Advanced RAG assistant. "
+    "I am **Docvane**, your document assistant. "
     "Here is what I can do:\n\n"
     "1. **Contract Analysis**: Ask about liability caps, indemnification, termination clauses, "
     "and governing law with page-level citations.\n"

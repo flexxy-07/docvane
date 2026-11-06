@@ -3,7 +3,7 @@ import "./globals.css";
 import { Navigation } from "@/components/Navigation";
 
 export const metadata: Metadata = {
-  title: "DocVane | Collaborative Document Intelligence",
+  title: "DocVane",
   description:
     "Read between the lines. Extraction, human verification, and grounded citations for complex paperwork.",
 };
