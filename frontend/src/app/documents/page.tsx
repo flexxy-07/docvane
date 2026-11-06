@@ -1,5 +1,7 @@
 "use client";
 
+export const dynamic = "force-dynamic";
+
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import {
@@ -51,7 +53,7 @@ export default function DocumentsPage() {
         return (
           <span className="rounded-full bg-blue-950/70 border border-blue-500/30 px-2.5 py-0.5 text-[11px] text-blue-300 flex items-center gap-1">
             <Clock className="h-2.5 w-2.5 animate-spin" />
-            <span className="capitalize">{status}</span>
+            <span>Reading...</span>
           </span>
         );
       default:

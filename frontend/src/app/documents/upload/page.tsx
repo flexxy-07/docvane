@@ -1,12 +1,13 @@
 "use client";
 
+export const dynamic = "force-dynamic";
+
 import { useState } from "react";
 import Link from "next/link";
 import {
   UploadCloud,
   FileCheck,
   ArrowRight,
-  ShieldAlert,
   Clock,
   Sparkles,
   ArrowLeft,
@@ -33,7 +34,7 @@ export default function UploadPage() {
 
     setIsUploading(true);
     setUploadStatus("uploading");
-    setStatusMessage("Calculating SHA-256 and uploading bytes to secure storage...");
+    setStatusMessage("Uploading document...");
 
     try {
       const formData = new FormData();
@@ -57,8 +58,8 @@ export default function UploadPage() {
       setUploadStatus("success");
       setStatusMessage(
         data.is_duplicate
-          ? "Document already indexed (matched existing SHA-256 checksum)."
-          : "Uploaded successfully! Document queued for OCR and schema extraction."
+          ? "This document is already in your workspace."
+          : "Uploaded successfully! Added to your workspace library."
       );
     } catch {
       // In offline / standalone mode, simulate realistic success flow
@@ -66,10 +67,10 @@ export default function UploadPage() {
         setUploadedDocId("doc-" + Math.random().toString(36).substring(2, 9));
         setUploadStatus("success");
         setStatusMessage(
-          "Document stored! Task dispatched to Celery worker for layout parsing & schema extraction."
+          "Document saved! Your paperwork is ready for reading and inquiry."
         );
         setIsUploading(false);
-      }, 1200);
+      }, 1000);
       return;
     }
 
@@ -77,122 +78,120 @@ export default function UploadPage() {
   };
 
   return (
-    <div className="mx-auto max-w-4xl px-6 py-12">
-      <Link
-        href="/documents"
-        className="inline-flex items-center gap-1.5 text-xs font-mono text-[#A0998F] transition-colors hover:text-[#FAF8F5]"
-      >
-        <ArrowLeft className="h-3.5 w-3.5" />
-        <span>Back to Document Library</span>
-      </Link>
-
-      <div className="mt-6 border-b border-[#2A2A2A] pb-8">
-        <span className="font-mono text-xs text-[#E8C07A] uppercase tracking-wider">
-          Intake Pipeline
-        </span>
-        <h1 className="mt-1 font-serif text-3xl sm:text-4xl text-[#FAF8F5]">
-          Deposit Document for Analysis
-        </h1>
-        <p className="mt-2 text-sm text-[#A0998F]">
-          Accepted formats: PDF agreements, scanned invoices, receipts, and multi-page TIFFs.
-        </p>
-      </div>
-
-      {/* Drag & Drop Editorial Zone */}
-      <div className="mt-10">
-        <label
-          htmlFor="file-dropzone"
-          className="group relative flex cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed border-[#2A2A2A] bg-[#141414] px-8 py-16 text-center transition-all hover:border-[#E8C07A]/50 hover:bg-[#181818]"
+    <div className="w-full min-h-[calc(100vh-4rem)] bg-[#1A1C20] text-white">
+      <div className="mx-auto max-w-4xl px-6 sm:px-8 py-12">
+        <Link
+          href="/documents"
+          className="inline-flex items-center gap-1.5 text-xs text-white/50 transition-colors hover:text-white"
         >
-          <div className="flex h-16 w-16 items-center justify-center rounded-2xl border border-[#2A2A2A] bg-[#1A1A1A] text-[#E8C07A] transition-transform group-hover:scale-105">
-            <UploadCloud className="h-8 w-8" />
-          </div>
+          <ArrowLeft className="h-3.5 w-3.5" />
+          <span>Back to Library</span>
+        </Link>
 
-          <h3 className="mt-6 font-serif text-xl font-medium text-[#FAF8F5]">
-            {file ? file.name : "Select or drag paperwork here"}
-          </h3>
-
-          <p className="mt-2 max-w-sm text-xs text-[#A0998F] leading-relaxed">
-            {file
-              ? `${(file.size / (1024 * 1024)).toFixed(2)} MB • Ready for processing`
-              : "PDF, PNG, JPEG up to 25MB. Deduplicated with SHA-256 before storage."}
+        <div className="mt-6 border-b border-white/10 pb-8">
+          <h1 className="font-serif text-3xl sm:text-4xl font-normal text-white">
+            Upload Document
+          </h1>
+          <p className="mt-2 text-sm text-[#A0A5AD]">
+            Deposit agreements, invoices, records, and paperwork for review and inquiry.
           </p>
+        </div>
 
-          <input
-            id="file-dropzone"
-            type="file"
-            accept=".pdf,.png,.jpg,.jpeg,.tiff"
-            className="hidden"
-            onChange={handleFileChange}
-          />
+        {/* Drag & Drop Zone */}
+        <div className="mt-10">
+          <label
+            htmlFor="file-dropzone"
+            className="group relative flex cursor-pointer flex-col items-center justify-center rounded-3xl border-2 border-dashed border-white/10 bg-[#0E242B]/50 px-8 py-16 text-center transition-all hover:border-white/30 hover:bg-[#0E242B]/80"
+          >
+            <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-white/5 text-white transition-transform group-hover:scale-105">
+              <UploadCloud className="h-8 w-8" />
+            </div>
 
-          {!file && (
-            <span className="mt-6 inline-block rounded-md border border-[#2A2A2A] bg-[#1F1F1F] px-4 py-2 text-xs font-mono text-[#FAF8F5] transition-colors group-hover:border-[#E8C07A]/50 group-hover:text-[#E8C07A]">
-              Browse Files
-            </span>
+            <h3 className="mt-6 font-serif text-xl font-normal text-white">
+              {file ? file.name : "Choose or drag paperwork here"}
+            </h3>
+
+            <p className="mt-2 max-w-sm text-xs text-white/50 leading-relaxed">
+              {file
+                ? `${(file.size / (1024 * 1024)).toFixed(2)} MB • Ready to deposit`
+                : "PDF, PNG, or JPEG documents up to 25MB."}
+            </p>
+
+            <input
+              id="file-dropzone"
+              type="file"
+              accept=".pdf,.png,.jpg,.jpeg,.tiff"
+              className="hidden"
+              onChange={handleFileChange}
+            />
+
+            {!file && (
+              <span className="mt-6 inline-block rounded-full bg-white px-5 py-2 text-xs font-medium text-[#1A1C20] transition-colors hover:bg-neutral-200">
+                Browse Files
+              </span>
+            )}
+          </label>
+
+          {/* Upload Action Bar */}
+          {file && (
+            <div className="mt-6 flex flex-col sm:flex-row items-center justify-between gap-4 rounded-2xl border border-white/10 bg-[#0E242B] p-5">
+              <div className="flex items-center gap-3">
+                <FileCheck className="h-5 w-5 text-emerald-400" />
+                <div>
+                  <p className="text-sm font-medium text-white">{file.name}</p>
+                  <p className="text-xs text-white/50">
+                    {(file.size / 1024).toFixed(0)} KB
+                  </p>
+                </div>
+              </div>
+
+              <button
+                onClick={handleUpload}
+                disabled={isUploading}
+                className="w-full sm:w-auto flex items-center justify-center gap-2 rounded-full bg-white px-6 py-2.5 text-xs font-medium text-[#1A1C20] transition-all hover:bg-neutral-200 disabled:opacity-50"
+              >
+                {isUploading ? (
+                  <>
+                    <Clock className="h-3.5 w-3.5 animate-spin" />
+                    <span>Uploading...</span>
+                  </>
+                ) : (
+                  <>
+                    <span>Add to Workspace</span>
+                    <ArrowRight className="h-3.5 w-3.5" />
+                  </>
+                )}
+              </button>
+            </div>
           )}
-        </label>
 
-        {/* Upload Action Bar */}
-        {file && (
-          <div className="mt-6 flex flex-col sm:flex-row items-center justify-between gap-4 rounded-xl border border-[#2A2A2A] bg-[#161616] p-4">
-            <div className="flex items-center gap-3">
-              <FileCheck className="h-5 w-5 text-[#7EC69A]" />
-              <div>
-                <p className="text-sm font-medium text-[#FAF8F5]">{file.name}</p>
-                <p className="text-xs font-mono text-[#6B6560]">
-                  {(file.size / 1024).toFixed(0)} KB • Validated MIME
-                </p>
+          {/* Status Notification */}
+          {uploadStatus === "success" && (
+            <div className="mt-6 rounded-2xl border border-emerald-500/30 bg-emerald-950/40 p-6 text-sm text-emerald-300">
+              <div className="flex items-center gap-2 font-serif text-base">
+                <Sparkles className="h-4 w-4" />
+                <span>Upload Complete</span>
+              </div>
+              <p className="mt-2 text-xs text-white/80">{statusMessage}</p>
+
+              <div className="mt-5 flex items-center gap-4 pt-4 border-t border-emerald-500/20">
+                <Link
+                  href="/documents"
+                  className="text-xs text-emerald-400 hover:underline"
+                >
+                  Return to Library →
+                </Link>
+                <Link
+                  href="/chat"
+                  className="text-xs text-white/70 hover:underline"
+                >
+                  Ask a question →
+                </Link>
               </div>
             </div>
-
-            <button
-              onClick={handleUpload}
-              disabled={isUploading}
-              className="w-full sm:w-auto flex items-center justify-center gap-2 rounded-md bg-[#FAF8F5] px-6 py-2.5 text-xs font-medium text-[#0F0F0F] transition-all hover:bg-[#E8C07A] disabled:opacity-50"
-            >
-              {isUploading ? (
-                <>
-                  <Clock className="h-3.5 w-3.5 animate-spin" />
-                  <span>Processing...</span>
-                </>
-              ) : (
-                <>
-                  <span>Begin Pipeline Intake</span>
-                  <ArrowRight className="h-3.5 w-3.5" />
-                </>
-              )}
-            </button>
-          </div>
-        )}
-
-        {/* Status Notification */}
-        {uploadStatus === "success" && (
-          <div className="mt-6 rounded-xl border border-[#7EC69A]/30 bg-[#7EC69A]/5 p-5 text-sm text-[#7EC69A]">
-            <div className="flex items-center gap-2 font-medium font-serif text-base">
-              <Sparkles className="h-4 w-4" />
-              <span>Intake Complete</span>
-            </div>
-            <p className="mt-2 text-xs text-[#FAF8F5]/80">{statusMessage}</p>
-
-            <div className="mt-4 flex items-center gap-4 pt-3 border-t border-[#7EC69A]/20">
-              <Link
-                href="/documents"
-                className="text-xs font-mono text-[#7EC69A] hover:underline"
-              >
-                Return to Documents Library →
-              </Link>
-              <Link
-                href="/reviews"
-                className="text-xs font-mono text-[#E8C07A] hover:underline"
-              >
-                Check Review Queue →
-              </Link>
-            </div>
-          </div>
-        )}
+          )}
+        </div>
       </div>
     </div>
   );
 }
-

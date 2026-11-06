@@ -252,7 +252,7 @@ export default function Home() {
                   href="/chat"
                   className="block px-4 py-2 hover:text-white transition-colors"
                 >
-                  <span>Inquirer & SQL</span>
+                  <span>Document Inquirer</span>
                 </Link>
               </div>
 
@@ -548,7 +548,7 @@ export default function Home() {
           <div className="flex items-center gap-6">
             <span className="hover:text-white cursor-pointer">TERMS OF SERVICE</span>
             <span className="hover:text-white cursor-pointer">PRIVACY POLICY</span>
-            <span className="hover:text-white cursor-pointer">ROW-LEVEL SECURITY</span>
+            <span className="hover:text-white cursor-pointer">SECURITY & PRIVACY</span>
           </div>
         </div>
       </footer>
