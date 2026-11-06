@@ -20,9 +20,25 @@
   --font-mono: "JetBrains Mono", Menlo, Consolas, monospace;
 }
 
-/* ─── Base ───────────────────────────────────────────── */
+/* ─── Scrollbar Hiding (Smooth scrolling without visible scrollbar) ─ */
 html {
   scroll-behavior: smooth;
+  scrollbar-width: none !important; /* Firefox */
+  -ms-overflow-style: none !important; /* IE and Edge */
+}
+
+/* Hide scrollbar for Chrome, Safari, Edge, Opera */
+::-webkit-scrollbar,
+*::-webkit-scrollbar {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+  background: transparent !important;
+}
+
+* {
+  scrollbar-width: none !important;
+  -ms-overflow-style: none !important;
 }
 
 body {
@@ -32,6 +48,8 @@ body {
   overflow-x: hidden;
   margin: 0;
   padding: 0;
+  scrollbar-width: none !important;
+  -ms-overflow-style: none !important;
 }
 
 .font-serif {
@@ -87,24 +105,6 @@ body {
   50%       { opacity: 0.7; transform: scaleY(0.6); }
 }
 
-/* Ink-spread for highlighted text appearing */
-@keyframes inkSpread {
-  from { clip-path: inset(0 100% 0 0); }
-  to   { clip-path: inset(0 0% 0 0); }
-}
-
-/* Wavy underline draw */
-@keyframes wavyDraw {
-  from { background-size: 0px 6px; }
-  to   { background-size: 16px 6px; }
-}
-
-/* Purple glow pulse on cursor accent */
-@keyframes glowPulse {
-  0%, 100% { filter: drop-shadow(0 0 6px rgba(176,102,255,0.3)); }
-  50%       { filter: drop-shadow(0 0 18px rgba(176,102,255,0.7)); }
-}
-
 /* ─── Utility classes ────────────────────────────────── */
 .animate-float         { animation: floatGentle 8s ease-in-out infinite; }
 .animate-float-delayed { animation: floatGentleDelayed 7s ease-in-out 1.5s infinite; }
@@ -112,7 +112,9 @@ body {
 /* ─── Hand-drawn proofreader wavy underline ──────────── */
 .hand-wavy-red {
   position: relative;
-  display: inline-block;
+  display: inline;
+  vertical-align: baseline;
+  white-space: nowrap;
 }
 
 .hand-wavy-red::after {
@@ -124,49 +126,69 @@ body {
   height: 6px;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 6' preserveAspectRatio='none'%3E%3Cpath d='M0,3 Q5,0 10,3 T20,3' fill='none' stroke='%23E5484D' stroke-width='2.2' stroke-linecap='round'/%3E%3C/svg%3E");
   background-repeat: repeat-x;
+  background-size: 0px 6px;
+  transition: background-size 0.7s cubic-bezier(0.16, 1, 0.3, 1) 0.5s;
+}
+
+.hand-wavy-red.active::after {
   background-size: 16px 6px;
-  animation: wavyDraw 1.2s ease-out forwards;
 }
 
 /* ─── Hand-drawn marker highlight ───────────────────── */
 .marker-highlight-purple {
   position: relative;
-  display: inline-block;
+  display: inline;
+  vertical-align: baseline;
+  white-space: nowrap;
   z-index: 1;
 }
 
 .marker-highlight-purple::before {
   content: "";
   position: absolute;
-  left: -6px;
-  right: -6px;
-  bottom: 4px;
+  left: -4px;
+  right: -4px;
+  bottom: 2px;
   height: 42%;
   background-color: #E9D5FF;
   z-index: -1;
   border-radius: 3px;
   transform: rotate(-0.6deg);
-  animation: inkSpread 0.8s ease-out forwards;
+  clip-path: inset(0 100% 0 0);
+  transition: clip-path 0.7s cubic-bezier(0.16, 1, 0.3, 1) 0.6s;
+}
+
+.marker-highlight-purple.active::before {
+  clip-path: inset(0 0% 0 0);
 }
 
 /* ─── Hand-drawn green oval circle ──────────────────── */
 .hand-circle-green {
   position: relative;
   display: inline-block;
-  padding: 0 10px;
+  vertical-align: baseline;
+  padding: 0 8px;
+  white-space: nowrap;
 }
 
 .hand-circle-green::after {
   content: "";
   position: absolute;
-  top: -8px;
-  left: -8px;
-  right: -8px;
-  bottom: -8px;
+  top: -6px;
+  left: -4px;
+  right: -4px;
+  bottom: -6px;
   border: 2px solid #2B9A66;
   border-radius: 50% 45% 55% 48% / 48% 55% 45% 52%;
   pointer-events: none;
-  animation: inkSpread 1s ease-out 0.3s both;
+  opacity: 0;
+  transform: scale(0.9);
+  transition: opacity 0.5s ease 0.8s, transform 0.5s cubic-bezier(0.16, 1, 0.3, 1) 0.8s;
+}
+
+.hand-circle-green.active::after {
+  opacity: 1;
+  transform: scale(1);
 }
 
 /* ─── Smooth hover underline for nav links ───────────── */

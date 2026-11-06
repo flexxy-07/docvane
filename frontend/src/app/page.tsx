@@ -353,47 +353,30 @@ export default function Home() {
           </div>
         </div>
 
-        <div className="max-w-4xl mx-auto space-y-12">
+        <div
+          className="max-w-4xl mx-auto space-y-12"
+          style={{
+            opacity: sec2.inView ? 1 : 0,
+            transform: sec2.inView ? "none" : "translateY(28px)",
+            transition: "all 0.9s cubic-bezier(0.16, 1, 0.3, 1) 200ms",
+          }}
+        >
           {/* Statement 1 */}
-          <h2 className="font-serif text-3xl sm:text-5xl md:text-[3.5rem] font-normal leading-[1.2] tracking-tight">
-            <SplitReveal
-              text="Plenty of tools are made for simple text, notes, and chat."
-              baseDelay={150}
-            />{" "}
-            <span
-              className="italic hand-wavy-red"
-              style={{
-                opacity: sec2.inView ? 1 : 0,
-                transition: "opacity 0.6s ease 900ms",
-              }}
-            >
+          <h2 className="font-serif text-3xl sm:text-5xl md:text-[3.5rem] font-normal leading-[1.22] tracking-tight">
+            Plenty of tools are made for simple text, notes, and chat.{" "}
+            <span className={`italic hand-wavy-red ${sec2.inView ? "active" : ""}`}>
               That&apos;s not us.
             </span>
           </h2>
 
-          {/* Statement 2 — staggered words */}
-          <p className="font-serif text-3xl sm:text-5xl md:text-[3.5rem] font-normal leading-[1.2] tracking-tight text-[#1F2124]">
-            <SplitReveal
-              text="DocVane is here to decode complex agreements, verify line items,"
-              baseDelay={300}
-            />{" "}
-            <span
-              className="marker-highlight-purple"
-              style={{
-                opacity: sec2.inView ? 1 : 0,
-                transition: "opacity 0.6s ease 1100ms",
-              }}
-            >
+          {/* Statement 2 */}
+          <p className="font-serif text-3xl sm:text-5xl md:text-[3.5rem] font-normal leading-[1.22] tracking-tight text-[#1F2124]">
+            DocVane is here to decode complex agreements, verify line items,{" "}
+            <span className={`marker-highlight-purple ${sec2.inView ? "active" : ""}`}>
               catch discrepancies
             </span>
             {", and certify grounded data "}
-            <span
-              className="hand-circle-green"
-              style={{
-                opacity: sec2.inView ? 1 : 0,
-                transition: "opacity 0.6s ease 1300ms",
-              }}
-            >
+            <span className={`hand-circle-green ${sec2.inView ? "active" : ""}`}>
               with citations.
             </span>
           </p>
@@ -469,26 +452,20 @@ export default function Home() {
           </svg>
         </div>
 
-        <div className="max-w-3xl mx-auto">
+        <div
+          className="max-w-3xl mx-auto"
+          style={{
+            opacity: sec3.inView ? 1 : 0,
+            transform: sec3.inView ? "none" : "translateY(24px)",
+            transition: "all 0.8s cubic-bezier(0.16, 1, 0.3, 1) 150ms",
+          }}
+        >
           <h2 className="font-serif text-4xl sm:text-6xl font-normal tracking-tight text-[#111827]">
-            <SplitReveal text="Made for" baseDelay={100} />{" "}
-            <span
-              className="italic text-[#E68A36]"
-              style={{
-                opacity: sec3.inView ? 1 : 0,
-                transform: sec3.inView ? "none" : "translateY(20px)",
-                display: "inline-block",
-                transition: "all 0.7s cubic-bezier(0.16,1,0.3,1) 600ms",
-              }}
-            >
-              critical documents
-            </span>
+            Made for <span className="italic text-[#E68A36]">critical documents</span>
           </h2>
-          <Reveal delay={800}>
-            <p className="mt-4 text-base text-[#4B5563] font-light max-w-xl mx-auto">
-              Where every invoice total, liability cap, and indemnification clause must be verified beyond doubt.
-            </p>
-          </Reveal>
+          <p className="mt-4 text-base text-[#4B5563] font-light max-w-xl mx-auto">
+            Where every invoice total, liability cap, and indemnification clause must be verified beyond doubt.
+          </p>
         </div>
       </section>
 
