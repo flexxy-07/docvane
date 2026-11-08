@@ -284,12 +284,6 @@ export default function Home() {
             <span className="absolute inset-0 rounded-full bg-[#F3F4F6] scale-0 group-hover:scale-100 transition-transform duration-500 ease-out origin-center" />
           </Link>
         </div>
-
-        {/* Scroll indicator */}
-        <div className="absolute bottom-10 left-1/2 -translate-x-1/2 flex flex-col items-center gap-1 text-white/30">
-          <span className="text-[10px] tracking-[0.2em] uppercase">scroll</span>
-          <span className="inline-block w-px h-8 bg-white/20" style={{ animation: "scrollPulse 2s ease-in-out infinite" }} />
-        </div>
       </section>
 
       {/* ══════════════════════════════════════════
