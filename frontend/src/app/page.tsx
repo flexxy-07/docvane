@@ -4,21 +4,33 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import Link from "next/link";
 
 /* ─────────────────────────────────────────────
-   useInView – fires once when element enters viewport
+   useInView – triggers when element enters viewport
 ───────────────────────────────────────────── */
-function useInView(threshold = 0.15) {
+function useInView(options?: { threshold?: number; rootMargin?: string }) {
   const ref = useRef<HTMLDivElement>(null);
   const [inView, setInView] = useState(false);
+
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
+
     const obs = new IntersectionObserver(
-      ([entry]) => { if (entry.isIntersecting) { setInView(true); obs.disconnect(); } },
-      { threshold }
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setInView(true);
+          obs.disconnect();
+        }
+      },
+      {
+        threshold: options?.threshold ?? 0.15,
+        rootMargin: options?.rootMargin ?? "0px 0px -40px 0px",
+      }
     );
+
     obs.observe(el);
     return () => obs.disconnect();
-  }, [threshold]);
+  }, [options?.threshold, options?.rootMargin]);
+
   return { ref, inView };
 }
 
@@ -51,49 +63,17 @@ function useMouse() {
 }
 
 /* ─────────────────────────────────────────────
-   SceneReveal – fade + slight rise on scroll entry
-───────────────────────────────────────────── */
-function Reveal({
-  children,
-  delay = 0,
-  className = "",
-  from = "bottom",
-}: {
-  children: React.ReactNode;
-  delay?: number;
-  className?: string;
-  from?: "bottom" | "left" | "right" | "none";
-}) {
-  const { ref, inView } = useInView(0.1);
-  const translateMap = { bottom: "translateY(40px)", left: "translateX(-40px)", right: "translateX(40px)", none: "none" };
-  return (
-    <div
-      ref={ref}
-      className={className}
-      style={{
-        opacity: inView ? 1 : 0,
-        transform: inView ? "none" : translateMap[from],
-        transition: `opacity 0.8s cubic-bezier(0.16,1,0.3,1) ${delay}ms, transform 0.8s cubic-bezier(0.16,1,0.3,1) ${delay}ms`,
-        willChange: "opacity, transform",
-      }}
-    >
-      {children}
-    </div>
-  );
-}
-
-/* ─────────────────────────────────────────────
    SplitReveal – animates each word sequentially
 ───────────────────────────────────────────── */
 function SplitReveal({ text, className = "", baseDelay = 0 }: { text: string; className?: string; baseDelay?: number }) {
-  const { ref, inView } = useInView(0.1);
+  const { ref, inView } = useInView({ threshold: 0.1 });
   const words = text.split(" ");
   return (
     <span ref={ref} className={className} aria-label={text}>
       {words.map((word, i) => (
         <span
           key={i}
-          className="inline-block overflow-hidden mr-[0.28em]"
+          className="inline-block overflow-hidden mr-[0.28em] align-top"
         >
           <span
             style={{
@@ -112,7 +92,7 @@ function SplitReveal({ text, className = "", baseDelay = 0 }: { text: string; cl
 }
 
 /* ─────────────────────────────────────────────
-   DrawSVG – animates stroke-dashoffset on entry
+   DrawSVGPlane – animates stroke-dashoffset on entry
 ───────────────────────────────────────────── */
 function DrawSVGPlane({ inView }: { inView: boolean }) {
   return (
@@ -150,22 +130,42 @@ export default function Home() {
   const heroParallaxY = useParallax(0.06);
   const lettersParallaxY = useParallax(0.14);
 
-  /* hero plane / cursor refs */
-  const heroRef = useRef<HTMLElement>(null);
-  const { ref: planeRef, inView: planeInView } = useInView(0.1);
-
-  /* section reveal hooks */
-  const sec2 = useInView(0.08);
-  const sec3 = useInView(0.1);
-  const sec4 = useInView(0.08);
-  const sec5 = useInView(0.1);
-
-  /* scroll-driven smooth behaviour */
+  /* Scroll Reading Progress */
+  const [scrollProgress, setScrollProgress] = useState(0);
   useEffect(() => {
-    document.documentElement.style.scrollBehavior = "smooth";
+    const handleScroll = () => {
+      const totalHeight = document.documentElement.scrollHeight - window.innerHeight;
+      if (totalHeight > 0) {
+        setScrollProgress((window.scrollY / totalHeight) * 100);
+      }
+    };
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    return () => window.removeEventListener("scroll", handleScroll);
   }, []);
 
-  /* cursor magnetic for CTA buttons */
+  /* Hero Plane */
+  const { ref: planeRef, inView: planeInView } = useInView({ threshold: 0.1 });
+
+  /* Section 2 Triggers (Granular scroll triggers) */
+  const { ref: sec2ContainerRef, inView: sec2InView } = useInView({ threshold: 0.05, rootMargin: "0px" });
+  const { ref: booksRef, inView: booksInView } = useInView({ threshold: 0.2, rootMargin: "0px 0px -40px 0px" });
+  const { ref: stmt1Ref, inView: stmt1InView } = useInView({ threshold: 0.25, rootMargin: "0px 0px -50px 0px" });
+  const { ref: stmt2Ref, inView: stmt2InView } = useInView({ threshold: 0.25, rootMargin: "0px 0px -50px 0px" });
+  const { ref: arrowRef, inView: arrowInView } = useInView({ threshold: 0.3, rootMargin: "0px 0px -30px 0px" });
+
+  /* Section 3 Triggers */
+  const { ref: sec3Ref, inView: sec3InView } = useInView({ threshold: 0.2, rootMargin: "0px 0px -50px 0px" });
+
+  /* Section 4 Triggers */
+  const { ref: sec4Ref, inView: sec4InView } = useInView({ threshold: 0.15, rootMargin: "0px 0px -60px 0px" });
+
+  /* Section 5 Triggers */
+  const { ref: sec5Ref, inView: sec5InView } = useInView({ threshold: 0.15, rootMargin: "0px 0px -60px 0px" });
+
+  /* Footer Trigger */
+  const { ref: footerRef, inView: footerInView } = useInView({ threshold: 0.2, rootMargin: "0px 0px -40px 0px" });
+
+  /* Magnetic CTA Button */
   const [btnTranslate, setBtnTranslate] = useState({ x: 0, y: 0 });
   const btnRef = useRef<HTMLDivElement>(null);
   const onBtnMove = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
@@ -182,15 +182,17 @@ export default function Home() {
 
   return (
     <div className="w-full bg-[#1A1C20] overflow-hidden">
+      {/* ─── Top Editorial Reading Progress Line ─── */}
+      <div
+        className="fixed top-0 left-0 right-0 h-[2.5px] bg-gradient-to-r from-[#B066FF] via-[#E68A36] to-[#2B9A66] z-50 origin-left pointer-events-none transition-transform duration-75"
+        style={{ transform: `scaleX(${scrollProgress / 100})` }}
+      />
 
       {/* ══════════════════════════════════════════
-          HERO — dark cinematic canvas
+          SECTION 1: HERO
          ══════════════════════════════════════════ */}
-      <section
-        ref={heroRef}
-        className="relative min-h-[calc(100vh-4rem)] flex flex-col items-center justify-center px-6 py-20 text-center select-none overflow-hidden"
-      >
-        {/* Scattered drifting letters — parallax layer */}
+      <section className="relative min-h-[calc(100vh-4rem)] flex flex-col items-center justify-center px-6 py-20 text-center select-none overflow-hidden">
+        {/* Scattered drifting letters with parallax layer */}
         <div
           className="pointer-events-none absolute inset-0 overflow-hidden text-[#3A3E47] font-sans text-xs select-none"
           style={{ transform: `translateY(${lettersParallaxY}px)` }}
@@ -227,7 +229,7 @@ export default function Home() {
           ))}
         </div>
 
-        {/* Paper airplane — lower-left, well clear of the headline */}
+        {/* Paper airplane — lower-left, sketches on entry */}
         <div
           ref={planeRef as React.RefObject<HTMLDivElement>}
           className="pointer-events-none absolute left-[7%] bottom-[22%] hidden md:block"
@@ -239,7 +241,7 @@ export default function Home() {
           <DrawSVGPlane inView={planeInView} />
         </div>
 
-        {/* Purple cursor — right side, aligned with headline vertically */}
+        {/* Purple cursor — right side, follows mouse subtly */}
         <div
           className="pointer-events-none absolute right-[11%] top-[46%] hidden md:block"
           style={{
@@ -261,207 +263,259 @@ export default function Home() {
         </h1>
 
         {/* Subtitle fade */}
-        <Reveal delay={700} from="none">
-          <p className="relative mt-7 max-w-xl text-base sm:text-lg font-light text-[#C5C9D1]">
-            DocVane is an intelligent document workspace made for clarity.
-          </p>
-        </Reveal>
+        <p className="relative mt-7 max-w-xl text-base sm:text-lg font-light text-[#C5C9D1] transition-all duration-700 delay-500">
+          DocVane is an intelligent document workspace made for clarity.
+        </p>
 
         {/* CTA — magnetic button */}
-        <Reveal delay={950} from="none">
-          <div
-            ref={btnRef}
-            className="relative mt-9"
-            onMouseMove={onBtnMove}
-            onMouseLeave={onBtnLeave}
+        <div
+          ref={btnRef}
+          className="relative mt-9"
+          onMouseMove={onBtnMove}
+          onMouseLeave={onBtnLeave}
+        >
+          <Link
+            href="/documents"
+            className="group relative inline-block overflow-hidden rounded-full bg-white px-8 py-3.5 text-sm font-medium text-[#1A1C20] shadow-sm"
+            style={{
+              transform: `translate(${btnTranslate.x}px, ${btnTranslate.y}px)`,
+              transition: "transform 0.3s cubic-bezier(0.16,1,0.3,1), box-shadow 0.3s",
+            }}
           >
-            <Link
-              href="/documents"
-              className="group relative inline-block overflow-hidden rounded-full bg-white px-8 py-3.5 text-sm font-medium text-[#1A1C20] shadow-sm"
-              style={{
-                transform: `translate(${btnTranslate.x}px, ${btnTranslate.y}px)`,
-                transition: "transform 0.3s cubic-bezier(0.16,1,0.3,1), box-shadow 0.3s",
-              }}
-            >
-              <span className="relative z-10 transition-colors duration-300 group-hover:text-[#1A1C20]">
-                Explore workspace
-              </span>
-              {/* ink-spread ripple on hover */}
-              <span
-                className="absolute inset-0 rounded-full bg-[#F3F4F6] scale-0 group-hover:scale-100 transition-transform duration-500 ease-out origin-center"
-              />
-            </Link>
-          </div>
-        </Reveal>
+            <span className="relative z-10 transition-colors duration-300 group-hover:text-[#1A1C20]">
+              Explore workspace
+            </span>
+            <span className="absolute inset-0 rounded-full bg-[#F3F4F6] scale-0 group-hover:scale-100 transition-transform duration-500 ease-out origin-center" />
+          </Link>
+        </div>
 
         {/* Scroll indicator */}
-        <Reveal delay={1400} from="none">
-          <div className="absolute bottom-10 left-1/2 -translate-x-1/2 flex flex-col items-center gap-1 text-white/30">
-            <span className="text-[10px] tracking-[0.2em] uppercase">scroll</span>
-            <span className="inline-block w-px h-8 bg-white/20" style={{ animation: "scrollPulse 2s ease-in-out infinite" }} />
-          </div>
-        </Reveal>
+        <div className="absolute bottom-10 left-1/2 -translate-x-1/2 flex flex-col items-center gap-1 text-white/30">
+          <span className="text-[10px] tracking-[0.2em] uppercase">scroll</span>
+          <span className="inline-block w-px h-8 bg-white/20" style={{ animation: "scrollPulse 2s ease-in-out infinite" }} />
+        </div>
       </section>
 
       {/* ══════════════════════════════════════════
-          SECTION 2 — Cream editorial statement
+          SECTION 2: WARM CREAM EDITORIAL
          ══════════════════════════════════════════ */}
       <section
-        ref={sec2.ref as React.RefObject<HTMLElement>}
+        ref={sec2ContainerRef as React.RefObject<HTMLElement>}
         className="relative w-full bg-[#F7F5F0] px-8 sm:px-16 py-28 text-[#111827] overflow-hidden"
       >
-        {/* Background ink-stain circle decoration */}
+        {/* Background ink-stain decorative circle */}
         <div
           className="pointer-events-none absolute -right-24 -top-24 w-96 h-96 rounded-full bg-[#E68A36]/5"
           style={{
-            transform: `scale(${sec2.inView ? 1 : 0.6}) rotate(${sec2.inView ? 0 : 20}deg)`,
-            opacity: sec2.inView ? 1 : 0,
-            transition: "all 1.4s cubic-bezier(0.16,1,0.3,1) 200ms",
+            transform: `scale(${sec2InView ? 1 : 0.6}) rotate(${sec2InView ? 0 : 20}deg)`,
+            opacity: sec2InView ? 1 : 0,
+            transition: "all 1.4s cubic-bezier(0.16,1,0.3,1) 150ms",
           }}
         />
 
-        {/* Books sketch — draws in from left */}
-        <div className="max-w-4xl mx-auto mb-8">
+        {/* Books sketch — draws in stroke-by-stroke as you scroll down to it */}
+        <div ref={booksRef as React.RefObject<HTMLDivElement>} className="max-w-4xl mx-auto mb-8">
+          <svg
+            className="w-36 h-28 text-[#111827]"
+            viewBox="0 0 160 120"
+            fill="none"
+            stroke="currentColor"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            {[
+              { d: "M 25,32 Q 80,18 135,28 L 132,40 Q 78,30 22,44 Z", len: 260, delay: 0 },
+              { d: "M 22,44 L 25,32", len: 30, delay: 80 },
+              { d: "M 22,44 Q 78,32 132,40", len: 120, delay: 140 },
+              { d: "M 35,42 L 35,46", len: 10, delay: 180 },
+              { d: "M 20,54 Q 80,40 140,50 L 138,62 Q 78,52 18,66 Z", len: 270, delay: 200 },
+              { d: "M 18,66 L 20,54", len: 30, delay: 280 },
+              { d: "M 25,78 L 138,72 L 136,88 L 22,94 Z", len: 290, delay: 320 },
+              { d: "M 22,94 L 25,78", len: 30, delay: 400 },
+              { d: "M 40,38 L 125,28", len: 90, delay: 440, sw: 0.8 },
+              { d: "M 38,50 L 130,40", len: 95, delay: 480, sw: 0.8 },
+              { d: "M 35,84 L 125,78", len: 95, delay: 520, sw: 0.8 },
+            ].map((p, i) => (
+              <path
+                key={i}
+                d={p.d}
+                strokeWidth={p.sw || 1.6}
+                strokeDasharray={p.len}
+                strokeDashoffset={booksInView ? 0 : p.len}
+                style={{
+                  transition: `stroke-dashoffset 0.85s cubic-bezier(0.16,1,0.3,1) ${p.delay}ms`,
+                }}
+              />
+            ))}
+          </svg>
+        </div>
+
+        <div className="max-w-4xl mx-auto space-y-12">
+          {/* Statement 1 — animates in on scroll with red wavy underline drawing left to right */}
           <div
+            ref={stmt1Ref as React.RefObject<HTMLDivElement>}
             style={{
-              opacity: sec2.inView ? 1 : 0,
-              transform: sec2.inView ? "none" : "translateX(-30px)",
-              transition: "all 0.9s cubic-bezier(0.16,1,0.3,1) 100ms",
+              opacity: stmt1InView ? 1 : 0,
+              transform: stmt1InView ? "none" : "translateY(24px)",
+              transition: "opacity 0.8s cubic-bezier(0.16,1,0.3,1), transform 0.8s cubic-bezier(0.16,1,0.3,1)",
             }}
           >
-            <svg
-              className="w-36 h-28 text-[#111827]"
-              viewBox="0 0 160 120"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.6"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <path d="M 25,32 Q 80,18 135,28 L 132,40 Q 78,30 22,44 Z" />
-              <path d="M 22,44 L 25,32" />
-              <path d="M 22,44 Q 78,32 132,40" />
-              <path d="M 35,42 L 35,46" />
-              <path d="M 20,54 Q 80,40 140,50 L 138,62 Q 78,52 18,66 Z" />
-              <path d="M 18,66 L 20,54" />
-              <path d="M 25,78 L 138,72 L 136,88 L 22,94 Z" />
-              <path d="M 22,94 L 25,78" />
-              <path d="M 40,38 L 125,28" strokeWidth="0.8" />
-              <path d="M 38,50 L 130,40" strokeWidth="0.8" />
-              <path d="M 35,84 L 125,78" strokeWidth="0.8" />
-            </svg>
+            <h2 className="font-serif text-3xl sm:text-5xl md:text-[3.5rem] font-normal leading-[1.22] tracking-tight">
+              Plenty of tools are made for simple text, notes, and chat.{" "}
+              <span className={`italic hand-wavy-red ${stmt1InView ? "active" : ""}`}>
+                That&apos;s not us.
+              </span>
+            </h2>
+          </div>
+
+          {/* Statement 2 — animates in on scroll with purple marker sweep and green circle draw */}
+          <div
+            ref={stmt2Ref as React.RefObject<HTMLDivElement>}
+            style={{
+              opacity: stmt2InView ? 1 : 0,
+              transform: stmt2InView ? "none" : "translateY(24px)",
+              transition: "opacity 0.8s cubic-bezier(0.16,1,0.3,1), transform 0.8s cubic-bezier(0.16,1,0.3,1)",
+            }}
+          >
+            <p className="font-serif text-3xl sm:text-5xl md:text-[3.5rem] font-normal leading-[1.22] tracking-tight text-[#1F2124]">
+              DocVane is here to decode complex agreements, verify line items,{" "}
+              <span className={`marker-highlight-purple ${stmt2InView ? "active" : ""}`}>
+                catch discrepancies
+              </span>
+              {", and certify grounded data "}
+              <span className="relative inline-block whitespace-nowrap px-1 align-baseline">
+                <span>with citations.</span>
+                <svg
+                  className="pointer-events-none absolute -inset-x-2 -inset-y-1.5 w-[calc(100%+1rem)] h-[calc(100%+0.75rem)]"
+                  viewBox="0 0 160 48"
+                  fill="none"
+                  preserveAspectRatio="none"
+                >
+                  <path
+                    d="M 16,24 C 14,9 50,4 85,5 C 130,6 154,13 152,25 C 150,37 118,44 76,43 C 35,42 8,36 11,22 C 13,13 36,8 60,7"
+                    stroke="#2B9A66"
+                    strokeWidth="2.2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeDasharray="440"
+                    strokeDashoffset={stmt2InView ? 0 : 440}
+                    style={{
+                      transition: "stroke-dashoffset 0.95s cubic-bezier(0.16,1,0.3,1) 0.3s",
+                    }}
+                  />
+                </svg>
+              </span>
+            </p>
           </div>
         </div>
 
-        <div
-          className="max-w-4xl mx-auto space-y-12"
-          style={{
-            opacity: sec2.inView ? 1 : 0,
-            transform: sec2.inView ? "none" : "translateY(28px)",
-            transition: "all 0.9s cubic-bezier(0.16, 1, 0.3, 1) 200ms",
-          }}
-        >
-          {/* Statement 1 */}
-          <h2 className="font-serif text-3xl sm:text-5xl md:text-[3.5rem] font-normal leading-[1.22] tracking-tight">
-            Plenty of tools are made for simple text, notes, and chat.{" "}
-            <span className={`italic hand-wavy-red ${sec2.inView ? "active" : ""}`}>
-              That&apos;s not us.
-            </span>
-          </h2>
-
-          {/* Statement 2 */}
-          <p className="font-serif text-3xl sm:text-5xl md:text-[3.5rem] font-normal leading-[1.22] tracking-tight text-[#1F2124]">
-            DocVane is here to decode complex agreements, verify line items,{" "}
-            <span className={`marker-highlight-purple ${sec2.inView ? "active" : ""}`}>
-              catch discrepancies
-            </span>
-            {", and certify grounded data "}
-            <span className={`hand-circle-green ${sec2.inView ? "active" : ""}`}>
-              with citations.
-            </span>
-          </p>
-        </div>
-
-        {/* Green arrow — rises in */}
-        <div
-          className="max-w-4xl mx-auto flex justify-end mt-12 pr-8"
-          style={{
-            opacity: sec2.inView ? 1 : 0,
-            transform: sec2.inView ? "none" : "translateX(20px)",
-            transition: "all 0.8s cubic-bezier(0.16,1,0.3,1) 1500ms",
-          }}
-        >
-          <svg className="w-16 h-12 text-[#2B9A66]" viewBox="0 0 80 60" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
-            <path d="M 10,15 Q 40,40 60,35" />
-            <path d="M 50,30 L 60,35 L 56,45" />
+        {/* Hand-drawn green arrow — draws downwards on scroll */}
+        <div ref={arrowRef as React.RefObject<HTMLDivElement>} className="max-w-4xl mx-auto flex justify-end mt-12 pr-8">
+          <svg className="w-16 h-12 text-[#2B9A66]" viewBox="0 0 80 60" fill="none" stroke="currentColor" strokeLinecap="round">
+            <path
+              d="M 10,15 Q 40,40 60,35"
+              strokeWidth="1.8"
+              strokeDasharray="70"
+              strokeDashoffset={arrowInView ? 0 : 70}
+              style={{ transition: "stroke-dashoffset 0.75s cubic-bezier(0.16,1,0.3,1) 0.1s" }}
+            />
+            <path
+              d="M 50,30 L 60,35 L 56,45"
+              strokeWidth="1.8"
+              strokeDasharray="40"
+              strokeDashoffset={arrowInView ? 0 : 40}
+              style={{ transition: "stroke-dashoffset 0.5s cubic-bezier(0.16,1,0.3,1) 0.45s" }}
+            />
           </svg>
         </div>
       </section>
 
       {/* ══════════════════════════════════════════
-          SECTION 3 — Warm banner with cranes
+          SECTION 3: WARM BANNER & CRANES
          ══════════════════════════════════════════ */}
       <section
-        ref={sec3.ref as React.RefObject<HTMLElement>}
+        ref={sec3Ref as React.RefObject<HTMLElement>}
         className="relative w-full bg-[#EDE9E0] border-t border-[#E2DDD3] px-8 sm:px-16 py-24 text-center overflow-hidden"
       >
-        {/* Origami cranes — swing in from top-right, then sway */}
-        <div
-          className="pointer-events-none absolute right-[10%] top-10 hidden lg:block"
-          style={{
-            opacity: sec3.inView ? 1 : 0,
-            transform: sec3.inView ? "none" : "translateY(-40px) rotate(15deg)",
-            transition: "all 1.1s cubic-bezier(0.16,1,0.3,1) 200ms",
-          }}
-        >
-          <svg
-            className="w-32 h-44 text-[#111827]"
-            viewBox="0 0 100 140"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1.4"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
-            <line x1="40" y1="0" x2="40" y2="40" strokeDasharray="3 3" />
-            <g style={{ animation: "craneSway 5s ease-in-out infinite" }}>
+        {/* Origami cranes — thread unrolls and cranes lower on scroll */}
+        <div className="pointer-events-none absolute right-[10%] top-6 hidden lg:block">
+          <svg className="w-32 h-48 text-[#111827]" viewBox="0 0 100 150" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
+            {/* Thread 1 */}
+            <line
+              x1="40" y1="0" x2="40" y2="40"
+              strokeDasharray="40"
+              strokeDashoffset={sec3InView ? 0 : 40}
+              style={{ transition: "stroke-dashoffset 0.8s ease 0ms" }}
+            />
+            {/* Top Crane */}
+            <g
+              style={{
+                opacity: sec3InView ? 1 : 0,
+                transform: sec3InView ? "scale(1)" : "scale(0.8) translateY(-15px)",
+                transformOrigin: "40px 40px",
+                transition: "all 0.8s cubic-bezier(0.16,1,0.3,1) 250ms",
+                animation: "craneSway 5s ease-in-out infinite",
+              }}
+            >
               <path d="M 40,40 L 65,48 L 48,60 L 30,52 Z" />
               <path d="M 48,60 L 58,75 L 35,68 Z" />
               <path d="M 30,52 L 20,44" />
             </g>
-            <line x1="75" y1="0" x2="75" y2="80" strokeDasharray="3 3" />
-            <g style={{ animation: "craneSway 6s ease-in-out 1s infinite" }}>
-              <path d="M 75,80 L 95,88 L 80,98 L 65,92 Z" />
-              <path d="M 80,98 L 88,112 L 68,105 Z" />
+            {/* Thread 2 */}
+            <line
+              x1="75" y1="0" x2="75" y2="85"
+              strokeDasharray="85"
+              strokeDashoffset={sec3InView ? 0 : 85}
+              style={{ transition: "stroke-dashoffset 1s ease 150ms" }}
+            />
+            {/* Bottom Crane */}
+            <g
+              style={{
+                opacity: sec3InView ? 1 : 0,
+                transform: sec3InView ? "scale(1)" : "scale(0.8) translateY(-20px)",
+                transformOrigin: "75px 85px",
+                transition: "all 0.8s cubic-bezier(0.16,1,0.3,1) 450ms",
+                animation: "craneSway 6s ease-in-out 1s infinite",
+              }}
+            >
+              <path d="M 75,85 L 95,93 L 80,103 L 65,97 Z" />
+              <path d="M 80,103 L 88,117 L 68,110 Z" />
             </g>
           </svg>
         </div>
 
-        {/* Left decorative books */}
-        <div
-          className="pointer-events-none absolute left-[8%] bottom-8 hidden lg:block"
-          style={{
-            opacity: sec3.inView ? 0.35 : 0,
-            transform: sec3.inView ? "none" : "translateY(30px)",
-            transition: "all 1s cubic-bezier(0.16,1,0.3,1) 400ms",
-          }}
-        >
-          <svg className="w-24 h-20 text-[#111827]" viewBox="0 0 160 120" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M 25,32 Q 80,18 135,28 L 132,40 Q 78,30 22,44 Z" />
-            <path d="M 25,78 L 138,72 L 136,88 L 22,94 Z" />
-          </svg>
-        </div>
-
+        {/* Heading — animates in with warm orange brush underline */}
         <div
           className="max-w-3xl mx-auto"
           style={{
-            opacity: sec3.inView ? 1 : 0,
-            transform: sec3.inView ? "none" : "translateY(24px)",
-            transition: "all 0.8s cubic-bezier(0.16, 1, 0.3, 1) 150ms",
+            opacity: sec3InView ? 1 : 0,
+            transform: sec3InView ? "none" : "translateY(24px)",
+            transition: "opacity 0.85s cubic-bezier(0.16,1,0.3,1), transform 0.85s cubic-bezier(0.16,1,0.3,1)",
           }}
         >
           <h2 className="font-serif text-4xl sm:text-6xl font-normal tracking-tight text-[#111827]">
-            Made for <span className="italic text-[#E68A36]">critical documents</span>
+            Made for{" "}
+            <span className="relative inline-block italic text-[#E68A36] whitespace-nowrap">
+              <span>critical documents</span>
+              <svg
+                className="pointer-events-none absolute -bottom-2.5 left-0 w-full h-3.5 overflow-visible"
+                viewBox="0 0 220 12"
+                fill="none"
+                preserveAspectRatio="none"
+              >
+                <path
+                  d="M 2,7 C 60,3 130,4 218,8 M 18,10 C 80,6 150,6 205,9"
+                  stroke="#E68A36"
+                  strokeWidth="2.2"
+                  strokeLinecap="round"
+                  strokeDasharray="260"
+                  strokeDashoffset={sec3InView ? 0 : 260}
+                  style={{
+                    transition: "stroke-dashoffset 0.9s cubic-bezier(0.16,1,0.3,1) 0.25s",
+                  }}
+                />
+              </svg>
+            </span>
           </h2>
           <p className="mt-4 text-base text-[#4B5563] font-light max-w-xl mx-auto">
             Where every invoice total, liability cap, and indemnification clause must be verified beyond doubt.
@@ -470,19 +524,18 @@ export default function Home() {
       </section>
 
       {/* ══════════════════════════════════════════
-          SECTION 4 — Product workspace showcase
+          SECTION 4: PRODUCT WORKSPACE SHOWCASE
          ══════════════════════════════════════════ */}
       <section
-        ref={sec4.ref as React.RefObject<HTMLElement>}
+        ref={sec4Ref as React.RefObject<HTMLElement>}
         className="relative w-full bg-[#1A1C20] px-6 sm:px-12 py-24"
       >
         <div className="max-w-6xl mx-auto">
           <div
-            className="rounded-3xl border border-[#2D3139] bg-gradient-to-b from-[#0E2832] to-[#0A1A20] p-6 sm:p-10 shadow-2xl"
+            className="rounded-3xl border border-[#2D3139] bg-gradient-to-b from-[#0E2832] to-[#0A1A20] p-6 sm:p-10 shadow-2xl transition-all duration-1000"
             style={{
-              opacity: sec4.inView ? 1 : 0,
-              transform: sec4.inView ? "none" : "translateY(50px) scale(0.97)",
-              transition: "all 1s cubic-bezier(0.16,1,0.3,1) 100ms",
+              opacity: sec4InView ? 1 : 0,
+              transform: sec4InView ? "none" : "translateY(40px) scale(0.97)",
             }}
           >
             {/* Inner Header */}
@@ -507,7 +560,7 @@ export default function Home() {
               </div>
             </div>
 
-            {/* Inner Split: Sidebar + Grid */}
+            {/* Inner Split: Sidebar + Staggered Cards */}
             <div className="mt-8 grid grid-cols-1 md:grid-cols-12 gap-8 items-start">
               {/* Left Mini Sidebar */}
               <div className="md:col-span-3 space-y-3 text-sm text-white/70">
@@ -526,7 +579,7 @@ export default function Home() {
                 </Link>
               </div>
 
-              {/* Right Document Cards */}
+              {/* Right Document Cards — staggered rise on scroll */}
               <div className="md:col-span-9 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                 {[
                   { title: "The Odyssey Logistics Manifest", time: "6 months", badge: "Verified ✓", badgeColor: "text-emerald-400 bg-emerald-950/60" },
@@ -541,23 +594,25 @@ export default function Home() {
                     href={item.badge === "Review needed" ? "/reviews" : "/chat"}
                     className={`group rounded-2xl border p-5 flex flex-col justify-between transition-all duration-300 ${
                       item.highlight
-                        ? "border-[#E68A36]/60 bg-[#14333D] shadow-lg shadow-[#E68A36]/5"
-                        : "border-white/10 bg-[#0C2229]/80 hover:border-white/25 hover:bg-[#102B34] hover:-translate-y-0.5 hover:shadow-lg hover:shadow-black/30"
+                        ? "border-[#E68A36]/60 bg-[#14333D] shadow-lg shadow-[#E68A36]/10 hover:-translate-y-1 hover:border-[#E68A36]"
+                        : "border-white/10 bg-[#0C2229]/80 hover:border-white/30 hover:bg-[#102B34] hover:-translate-y-1 hover:shadow-xl hover:shadow-black/40"
                     }`}
                     style={{
-                      opacity: sec4.inView ? 1 : 0,
-                      transform: sec4.inView ? "none" : "translateY(20px)",
-                      transition: `opacity 0.6s ease ${300 + i * 90}ms, transform 0.6s cubic-bezier(0.16,1,0.3,1) ${300 + i * 90}ms, border-color 0.3s, background 0.3s, box-shadow 0.3s`,
+                      opacity: sec4InView ? 1 : 0,
+                      transform: sec4InView ? "none" : "translateY(28px)",
+                      transition: `opacity 0.7s cubic-bezier(0.16,1,0.3,1) ${200 + i * 80}ms, transform 0.7s cubic-bezier(0.16,1,0.3,1) ${200 + i * 80}ms, border-color 0.3s, background 0.3s, box-shadow 0.3s`,
                     }}
                   >
                     <div>
-                      <h4 className="font-serif text-base font-normal text-white line-clamp-2 leading-snug group-hover:text-white/90 transition-colors">
+                      <h4 className="font-serif text-base font-normal text-white line-clamp-2 leading-snug group-hover:text-white transition-colors">
                         {item.title}
                       </h4>
                     </div>
                     <div className="mt-8 flex items-center justify-between text-xs text-white/50 border-t border-white/5 pt-3">
                       <span>{item.time}</span>
-                      <span className={`rounded-full px-2 py-0.5 text-[10px] ${item.badgeColor}`}>{item.badge}</span>
+                      <span className={`rounded-full px-2 py-0.5 text-[10px] ${item.badgeColor}`}>
+                        {item.badge}
+                      </span>
                     </div>
                   </Link>
                 ))}
@@ -568,10 +623,10 @@ export default function Home() {
       </section>
 
       {/* ══════════════════════════════════════════
-          SECTION 5 — CTA with open doorway
+          SECTION 5: OPEN DOORWAY & FLOATING PAPERS
          ══════════════════════════════════════════ */}
       <section
-        ref={sec5.ref as React.RefObject<HTMLElement>}
+        ref={sec5Ref as React.RefObject<HTMLElement>}
         className="relative w-full bg-[#1A1C20] px-8 sm:px-16 pt-20 pb-28 border-t border-white/5 overflow-hidden"
       >
         <div className="max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-12 gap-8 items-center">
@@ -580,9 +635,9 @@ export default function Home() {
             <h2
               className="font-serif text-4xl sm:text-6xl font-normal text-white tracking-tight leading-[1.12]"
               style={{
-                opacity: sec5.inView ? 1 : 0,
-                transform: sec5.inView ? "none" : "translateY(30px)",
-                transition: "all 0.9s cubic-bezier(0.16,1,0.3,1) 100ms",
+                opacity: sec5InView ? 1 : 0,
+                transform: sec5InView ? "none" : "translateY(28px)",
+                transition: "opacity 0.85s cubic-bezier(0.16,1,0.3,1), transform 0.85s cubic-bezier(0.16,1,0.3,1)",
               }}
             >
               Get started—read away.
@@ -590,14 +645,14 @@ export default function Home() {
 
             <div
               style={{
-                opacity: sec5.inView ? 1 : 0,
-                transform: sec5.inView ? "none" : "translateY(20px)",
-                transition: "all 0.9s cubic-bezier(0.16,1,0.3,1) 400ms",
+                opacity: sec5InView ? 1 : 0,
+                transform: sec5InView ? "none" : "translateY(20px)",
+                transition: "opacity 0.85s cubic-bezier(0.16,1,0.3,1) 200ms, transform 0.85s cubic-bezier(0.16,1,0.3,1) 200ms",
               }}
             >
               <Link
                 href="/documents"
-                className="group relative inline-block overflow-hidden rounded-full bg-white px-8 py-3.5 text-sm font-medium text-[#1A1C20] hover:shadow-[0_0_30px_rgba(255,255,255,0.15)] transition-shadow duration-500"
+                className="group relative inline-block overflow-hidden rounded-full bg-white px-8 py-3.5 text-sm font-medium text-[#1A1C20] hover:shadow-[0_0_30px_rgba(255,255,255,0.18)] transition-shadow duration-500"
               >
                 <span className="relative z-10">Sign up—it&apos;s free</span>
                 <span className="absolute inset-0 rounded-full bg-[#F3F4F6] scale-0 group-hover:scale-100 transition-transform duration-500 ease-out origin-center" />
@@ -605,13 +660,13 @@ export default function Home() {
             </div>
           </div>
 
-          {/* Right doorway SVG — papers animate in */}
+          {/* Right Doorway Sketch — frame sketches in and papers drift */}
           <div
             className="md:col-span-6 relative flex justify-center md:justify-end"
             style={{
-              opacity: sec5.inView ? 1 : 0,
-              transform: sec5.inView ? "none" : "translateX(40px)",
-              transition: "all 1s cubic-bezier(0.16,1,0.3,1) 200ms",
+              opacity: sec5InView ? 1 : 0,
+              transform: sec5InView ? "none" : "translateX(30px)",
+              transition: "opacity 0.9s cubic-bezier(0.16,1,0.3,1), transform 0.9s cubic-bezier(0.16,1,0.3,1)",
             }}
           >
             <svg
@@ -623,53 +678,132 @@ export default function Home() {
               strokeLinecap="round"
               strokeLinejoin="round"
             >
-              <path d="M 0,360 Q 150,363 320,360" strokeWidth="1.3" strokeOpacity="0.7" />
-              <path d="M 125,55 L 125,360" strokeWidth="1.8" />
-              <path d="M 125,55 L 235,25 L 235,360" strokeWidth="1.8" />
-              <path d="M 125,55 L 235,25" strokeWidth="1.8" />
-              <path d="M 235,25 L 305,75 L 305,372 L 235,360 Z" strokeWidth="2" fill="#16181C" />
+              {/* Ground horizon line draws across */}
+              <path
+                d="M 0,360 Q 150,363 320,360"
+                strokeWidth="1.3"
+                strokeOpacity="0.7"
+                strokeDasharray="340"
+                strokeDashoffset={sec5InView ? 0 : 340}
+                style={{ transition: "stroke-dashoffset 1s ease 0ms" }}
+              />
+
+              {/* Door frame outer draws in */}
+              <path
+                d="M 125,55 L 125,360"
+                strokeWidth="1.8"
+                strokeDasharray="310"
+                strokeDashoffset={sec5InView ? 0 : 310}
+                style={{ transition: "stroke-dashoffset 0.8s ease 150ms" }}
+              />
+              <path
+                d="M 125,55 L 235,25 L 235,360"
+                strokeWidth="1.8"
+                strokeDasharray="450"
+                strokeDashoffset={sec5InView ? 0 : 450}
+                style={{ transition: "stroke-dashoffset 0.9s ease 250ms" }}
+              />
+
+              {/* Door leaf swung open into perspective */}
+              <path
+                d="M 235,25 L 305,75 L 305,372 L 235,360 Z"
+                strokeWidth="2"
+                fill="#16181C"
+                style={{
+                  opacity: sec5InView ? 1 : 0,
+                  transform: sec5InView ? "none" : "scaleX(0.8)",
+                  transformOrigin: "235px center",
+                  transition: "all 0.8s cubic-bezier(0.16,1,0.3,1) 350ms",
+                }}
+              />
+              {/* Door thickness & handle */}
               <path d="M 305,75 L 312,71 L 312,368 L 305,372 Z" strokeWidth="1.5" />
               <path d="M 248,198 L 272,204 M 248,198 L 248,206" strokeWidth="2.4" />
               <path d="M 125,360 L 235,360" strokeWidth="1.8" />
 
-              <g style={{ animation: "paperDrift 7s ease-in-out infinite" }}>
+              {/* Flying paperwork sheets drifting through the door */}
+              <g style={{
+                opacity: sec5InView ? 1 : 0,
+                transition: "opacity 0.8s ease 500ms",
+                animation: "paperDrift 7s ease-in-out infinite",
+              }}>
                 <path d="M 60,115 L 105,98 L 115,150 L 70,167 Z" strokeWidth="1.5" fill="#1A1C20" />
                 <path d="M 72,118 L 98,108" strokeWidth="1" strokeDasharray="2 3" />
                 <path d="M 75,130 L 102,120" strokeWidth="1" strokeDasharray="2 3" />
                 <path d="M 78,142 L 105,132" strokeWidth="1" strokeDasharray="2 3" />
               </g>
-              <g style={{ animation: "paperDrift 9s ease-in-out 1.5s infinite" }}>
+
+              <g style={{
+                opacity: sec5InView ? 1 : 0,
+                transition: "opacity 0.8s ease 600ms",
+                animation: "paperDrift 9s ease-in-out 1.5s infinite",
+              }}>
                 <path d="M 148,95 Q 170,82 192,102 L 180,148 Q 158,132 138,144 Z" strokeWidth="1.5" fill="#1A1C20" />
                 <path d="M 152,108 Q 168,100 180,112" strokeWidth="1" strokeDasharray="2 2" />
               </g>
-              <g>
+
+              <g style={{
+                opacity: sec5InView ? 1 : 0,
+                transition: "opacity 0.8s ease 650ms",
+              }}>
                 <path d="M 80,185 L 100,181 L 106,260 L 86,264 Z" strokeWidth="1.5" fill="#1A1C20" />
                 <line x1="85" y1="195" x2="96" y2="193" strokeWidth="1" />
                 <line x1="86" y1="205" x2="98" y2="203" strokeWidth="1" />
                 <line x1="87" y1="215" x2="99" y2="213" strokeWidth="1" />
                 <line x1="88" y1="225" x2="100" y2="223" strokeWidth="1" />
               </g>
-              <g style={{ animation: "paperDrift 8s ease-in-out 0.7s infinite" }}>
+
+              <g style={{
+                opacity: sec5InView ? 1 : 0,
+                transition: "opacity 0.8s ease 700ms",
+                animation: "paperDrift 8s ease-in-out 0.7s infinite",
+              }}>
                 <path d="M 140,192 L 185,182 L 175,232 L 130,242 Z" strokeWidth="1.5" fill="#1A1C20" />
                 <line x1="145" y1="200" x2="175" y2="192" strokeWidth="1" strokeDasharray="2 3" />
                 <line x1="143" y1="212" x2="172" y2="204" strokeWidth="1" strokeDasharray="2 3" />
               </g>
-              <g>
+
+              <g style={{ opacity: sec5InView ? 1 : 0, transition: "opacity 0.8s ease 750ms" }}>
                 <path d="M 125,295 Q 160,290 190,310 L 175,330 Q 145,310 115,320 Z" strokeWidth="1.5" fill="#1A1C20" />
               </g>
+
               <rect x="52" y="245" width="11" height="16" transform="rotate(22 52 245)" strokeWidth="1.3" style={{ animation: "paperDrift 10s ease-in-out 2s infinite" }} />
               <rect x="150" y="270" width="14" height="9" transform="rotate(-15 150 270)" strokeWidth="1.3" style={{ animation: "paperDrift 8.5s ease-in-out 0.3s infinite" }} />
-              <path d="M 335,235 L 335,251 M 327,243 L 343,243" stroke="#3B82F6" strokeWidth="1.8" />
-              <path d="M 75,18 L 78,30" stroke="#EF4444" strokeWidth="2.4" />
+              
+              {/* Blue spark accent clicks in */}
+              <path
+                d="M 335,235 L 335,251 M 327,243 L 343,243"
+                stroke="#3B82F6"
+                strokeWidth="1.8"
+                style={{
+                  opacity: sec5InView ? 1 : 0,
+                  transform: sec5InView ? "scale(1)" : "scale(0)",
+                  transformOrigin: "335px 243px",
+                  transition: "all 0.5s cubic-bezier(0.16,1,0.3,1) 800ms",
+                }}
+              />
+              {/* Red accent stroke paints in */}
+              <path
+                d="M 75,18 L 78,30"
+                stroke="#EF4444"
+                strokeWidth="2.4"
+                style={{
+                  opacity: sec5InView ? 1 : 0,
+                  transition: "opacity 0.5s ease 850ms",
+                }}
+              />
             </svg>
           </div>
         </div>
       </section>
 
       {/* ══════════════════════════════════════════
-          FOOTER
+          SECTION 6: EDITORIAL FOOTER
          ══════════════════════════════════════════ */}
-      <footer className="w-full bg-[#121316] text-[#A0A5AD] px-8 sm:px-16 py-20 border-t border-[#22252A]">
+      <footer
+        ref={footerRef as React.RefObject<HTMLElement>}
+        className="w-full bg-[#121316] text-[#A0A5AD] px-8 sm:px-16 py-20 border-t border-[#22252A]"
+      >
         <div className="max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-12 gap-12 items-start">
           <div className="md:col-span-5 space-y-6">
             <Link href="/" className="font-serif text-3xl font-bold text-white tracking-tight hover:text-white/80 transition-colors">
@@ -694,7 +828,14 @@ export default function Home() {
             </nav>
           </div>
 
-          <div className="md:col-span-7 md:pl-8">
+          <div
+            className="md:col-span-7 md:pl-8"
+            style={{
+              opacity: footerInView ? 1 : 0,
+              transform: footerInView ? "none" : "translateY(20px)",
+              transition: "opacity 0.85s cubic-bezier(0.16,1,0.3,1), transform 0.85s cubic-bezier(0.16,1,0.3,1)",
+            }}
+          >
             <blockquote className="font-serif text-2xl sm:text-3xl text-white font-normal leading-relaxed">
               &ldquo;More than any other single invention, writing has transformed human consciousness.&rdquo;
             </blockquote>

@@ -109,7 +109,7 @@ body {
 .animate-float         { animation: floatGentle 8s ease-in-out infinite; }
 .animate-float-delayed { animation: floatGentleDelayed 7s ease-in-out 1.5s infinite; }
 
-/* ─── Hand-drawn proofreader wavy underline ──────────── */
+/* ─── Hand-drawn proofreader wavy underline (Animated on scroll) ──── */
 .hand-wavy-red {
   position: relative;
   display: inline;
@@ -123,18 +123,19 @@ body {
   left: 0;
   bottom: -4px;
   width: 100%;
-  height: 6px;
+  height: 7px;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 6' preserveAspectRatio='none'%3E%3Cpath d='M0,3 Q5,0 10,3 T20,3' fill='none' stroke='%23E5484D' stroke-width='2.2' stroke-linecap='round'/%3E%3C/svg%3E");
   background-repeat: repeat-x;
-  background-size: 0px 6px;
-  transition: background-size 0.7s cubic-bezier(0.16, 1, 0.3, 1) 0.5s;
+  background-size: 16px 6px;
+  clip-path: inset(0 100% 0 0);
+  transition: clip-path 0.85s cubic-bezier(0.16, 1, 0.3, 1) 0.15s;
 }
 
 .hand-wavy-red.active::after {
-  background-size: 16px 6px;
+  clip-path: inset(0 0% 0 0);
 }
 
-/* ─── Hand-drawn marker highlight ───────────────────── */
+/* ─── Hand-drawn marker highlight (Animated on scroll) ──────────── */
 .marker-highlight-purple {
   position: relative;
   display: inline;
@@ -155,40 +156,11 @@ body {
   border-radius: 3px;
   transform: rotate(-0.6deg);
   clip-path: inset(0 100% 0 0);
-  transition: clip-path 0.7s cubic-bezier(0.16, 1, 0.3, 1) 0.6s;
+  transition: clip-path 0.8s cubic-bezier(0.16, 1, 0.3, 1) 0.15s;
 }
 
 .marker-highlight-purple.active::before {
   clip-path: inset(0 0% 0 0);
-}
-
-/* ─── Hand-drawn green oval circle ──────────────────── */
-.hand-circle-green {
-  position: relative;
-  display: inline-block;
-  vertical-align: baseline;
-  padding: 0 8px;
-  white-space: nowrap;
-}
-
-.hand-circle-green::after {
-  content: "";
-  position: absolute;
-  top: -6px;
-  left: -4px;
-  right: -4px;
-  bottom: -6px;
-  border: 2px solid #2B9A66;
-  border-radius: 50% 45% 55% 48% / 48% 55% 45% 52%;
-  pointer-events: none;
-  opacity: 0;
-  transform: scale(0.9);
-  transition: opacity 0.5s ease 0.8s, transform 0.5s cubic-bezier(0.16, 1, 0.3, 1) 0.8s;
-}
-
-.hand-circle-green.active::after {
-  opacity: 1;
-  transform: scale(1);
 }
 
 /* ─── Smooth hover underline for nav links ───────────── */
