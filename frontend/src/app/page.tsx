@@ -151,7 +151,6 @@ export default function Home() {
   const { ref: booksRef, inView: booksInView } = useInView({ threshold: 0.2, rootMargin: "0px 0px -40px 0px" });
   const { ref: stmt1Ref, inView: stmt1InView } = useInView({ threshold: 0.25, rootMargin: "0px 0px -50px 0px" });
   const { ref: stmt2Ref, inView: stmt2InView } = useInView({ threshold: 0.25, rootMargin: "0px 0px -50px 0px" });
-  const { ref: arrowRef, inView: arrowInView } = useInView({ threshold: 0.3, rootMargin: "0px 0px -30px 0px" });
 
   /* Section 3 Triggers */
   const { ref: sec3Ref, inView: sec3InView } = useInView({ threshold: 0.2, rootMargin: "0px 0px -50px 0px" });
@@ -407,26 +406,6 @@ export default function Home() {
               </span>
             </p>
           </div>
-        </div>
-
-        {/* Hand-drawn green arrow — draws downwards on scroll */}
-        <div ref={arrowRef as React.RefObject<HTMLDivElement>} className="max-w-4xl mx-auto flex justify-end mt-12 pr-8">
-          <svg className="w-16 h-12 text-[#2B9A66]" viewBox="0 0 80 60" fill="none" stroke="currentColor" strokeLinecap="round">
-            <path
-              d="M 10,15 Q 40,40 60,35"
-              strokeWidth="1.8"
-              strokeDasharray="70"
-              strokeDashoffset={arrowInView ? 0 : 70}
-              style={{ transition: "stroke-dashoffset 0.75s cubic-bezier(0.16,1,0.3,1) 0.1s" }}
-            />
-            <path
-              d="M 50,30 L 60,35 L 56,45"
-              strokeWidth="1.8"
-              strokeDasharray="40"
-              strokeDashoffset={arrowInView ? 0 : 40}
-              style={{ transition: "stroke-dashoffset 0.5s cubic-bezier(0.16,1,0.3,1) 0.45s" }}
-            />
-          </svg>
         </div>
       </section>
 
