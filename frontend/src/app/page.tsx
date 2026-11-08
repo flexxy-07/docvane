@@ -155,10 +155,7 @@ export default function Home() {
   /* Section 3 Triggers */
   const { ref: sec3Ref, inView: sec3InView } = useInView({ threshold: 0.2, rootMargin: "0px 0px -50px 0px" });
 
-  /* Section 4 Triggers */
-  const { ref: sec4Ref, inView: sec4InView } = useInView({ threshold: 0.15, rootMargin: "0px 0px -60px 0px" });
-
-  /* Section 5 Triggers */
+  /* Section 4 Triggers (formerly Section 5) */
   const { ref: sec5Ref, inView: sec5InView } = useInView({ threshold: 0.15, rootMargin: "0px 0px -60px 0px" });
 
   /* Footer Trigger */
@@ -503,106 +500,7 @@ export default function Home() {
       </section>
 
       {/* ══════════════════════════════════════════
-          SECTION 4: PRODUCT WORKSPACE SHOWCASE
-         ══════════════════════════════════════════ */}
-      <section
-        ref={sec4Ref as React.RefObject<HTMLElement>}
-        className="relative w-full bg-[#1A1C20] px-6 sm:px-12 py-24"
-      >
-        <div className="max-w-6xl mx-auto">
-          <div
-            className="rounded-3xl border border-[#2D3139] bg-gradient-to-b from-[#0E2832] to-[#0A1A20] p-6 sm:p-10 shadow-2xl transition-all duration-1000"
-            style={{
-              opacity: sec4InView ? 1 : 0,
-              transform: sec4InView ? "none" : "translateY(40px) scale(0.97)",
-            }}
-          >
-            {/* Inner Header */}
-            <div className="flex flex-wrap items-center justify-between gap-4 border-b border-white/10 pb-6">
-              <div className="flex items-center gap-4">
-                <span className="font-serif text-2xl font-bold text-white tracking-tight">docvane</span>
-                <span className="text-white/40">|</span>
-                <span className="font-serif text-xl text-white">All paperwork (10)</span>
-                <Link
-                  href="/documents/upload"
-                  className="rounded-full bg-white/10 px-3 py-1 text-xs font-medium text-white hover:bg-white/20 transition-colors"
-                >
-                  + New
-                </Link>
-              </div>
-              <div className="flex items-center gap-3">
-                <input
-                  type="text"
-                  placeholder="Search repository..."
-                  className="rounded-full bg-white/5 border border-white/10 px-4 py-1.5 text-xs text-white placeholder-white/40 outline-none w-48 sm:w-64 focus:border-white/30 transition-colors"
-                />
-              </div>
-            </div>
-
-            {/* Inner Split: Sidebar + Staggered Cards */}
-            <div className="mt-8 grid grid-cols-1 md:grid-cols-12 gap-8 items-start">
-              {/* Left Mini Sidebar */}
-              <div className="md:col-span-3 space-y-3 text-sm text-white/70">
-                <div className="relative inline-block w-full">
-                  <div className="rounded-full border border-white/30 bg-white/10 px-4 py-2 text-white font-medium flex items-center justify-between">
-                    <span>Repository</span>
-                    <span className="text-xs text-white/50">10</span>
-                  </div>
-                </div>
-                <Link href="/reviews" className="block px-4 py-2 hover:text-white transition-colors flex items-center justify-between">
-                  <span>Review Queue</span>
-                  <span className="rounded-full bg-[#E68A36]/20 px-2 py-0.5 text-xs text-[#E68A36] font-mono">3</span>
-                </Link>
-                <Link href="/chat" className="block px-4 py-2 hover:text-white transition-colors">
-                  <span>Document Inquirer</span>
-                </Link>
-              </div>
-
-              {/* Right Document Cards — staggered rise on scroll */}
-              <div className="md:col-span-9 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                {[
-                  { title: "The Odyssey Logistics Manifest", time: "6 months", badge: "Verified ✓", badgeColor: "text-emerald-400 bg-emerald-950/60" },
-                  { title: "Frankenstein; or, the Modern Prometheus Order", time: "2 months", badge: "Review needed", badgeColor: "text-amber-400 bg-amber-950/60" },
-                  { title: "The Iliad Master Services Contract", time: "25 days ago", badge: "Verified ✓", badgeColor: "text-emerald-400 bg-emerald-950/60" },
-                  { title: "The Metamorphosis Commercial Lease", time: "10 days ago", badge: "Verified ✓", badgeColor: "text-emerald-400 bg-emerald-950/60" },
-                  { title: "The Strange Case of Dr. Jekyll and Mr. Hyde", time: "2 minutes ago", badge: "Review needed", badgeColor: "text-amber-400 bg-amber-950/60", highlight: true },
-                  { title: "The Picture of Dorian Gray Advisory Agreement", time: "Just now", badge: "Verified ✓", badgeColor: "text-emerald-400 bg-emerald-950/60" },
-                ].map((item, i) => (
-                  <Link
-                    key={i}
-                    href={item.badge === "Review needed" ? "/reviews" : "/chat"}
-                    className={`group rounded-2xl border p-5 flex flex-col justify-between transition-all duration-300 ${
-                      item.highlight
-                        ? "border-[#E68A36]/60 bg-[#14333D] shadow-lg shadow-[#E68A36]/10 hover:-translate-y-1 hover:border-[#E68A36]"
-                        : "border-white/10 bg-[#0C2229]/80 hover:border-white/30 hover:bg-[#102B34] hover:-translate-y-1 hover:shadow-xl hover:shadow-black/40"
-                    }`}
-                    style={{
-                      opacity: sec4InView ? 1 : 0,
-                      transform: sec4InView ? "none" : "translateY(28px)",
-                      transition: `opacity 0.7s cubic-bezier(0.16,1,0.3,1) ${200 + i * 80}ms, transform 0.7s cubic-bezier(0.16,1,0.3,1) ${200 + i * 80}ms, border-color 0.3s, background 0.3s, box-shadow 0.3s`,
-                    }}
-                  >
-                    <div>
-                      <h4 className="font-serif text-base font-normal text-white line-clamp-2 leading-snug group-hover:text-white transition-colors">
-                        {item.title}
-                      </h4>
-                    </div>
-                    <div className="mt-8 flex items-center justify-between text-xs text-white/50 border-t border-white/5 pt-3">
-                      <span>{item.time}</span>
-                      <span className={`rounded-full px-2 py-0.5 text-[10px] ${item.badgeColor}`}>
-                        {item.badge}
-                      </span>
-                    </div>
-                  </Link>
-                ))}
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* ══════════════════════════════════════════
-          SECTION 5: OPEN DOORWAY & FLOATING PAPERS
+          SECTION 4: OPEN DOORWAY & FLOATING PAPERS
          ══════════════════════════════════════════ */}
       <section
         ref={sec5Ref as React.RefObject<HTMLElement>}
