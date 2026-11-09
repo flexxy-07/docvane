@@ -1,7 +1,8 @@
 import os
 from functools import lru_cache
-from typing import Literal
+from typing import Any, Literal
 
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # Ensure LiteLLM uses local cached model costs rather than blocking network calls
@@ -19,8 +20,19 @@ class Settings(BaseSettings):
     # General App Config
     ENVIRONMENT: Literal["development", "staging", "production", "test"] = "development"
     DEBUG: bool = True
+    PORT: int = 8000
     PROJECT_NAME: str = "Docvane"
     API_V1_STR: str = "/api/v1"
+    CORS_ORIGINS: list[str] = ["*"]
+
+    @field_validator("CORS_ORIGINS", mode="before")
+    @classmethod
+    def assemble_cors_origins(cls, v: Any) -> list[str]:
+        if isinstance(v, str) and not v.startswith("["):
+            return [i.strip() for i in v.split(",") if i.strip()]
+        elif isinstance(v, list):
+            return v
+        return ["*"]
 
     # PostgreSQL + pgvector (local Docker port 5433)
     DATABASE_URL: str = "postgresql+asyncpg://postgres:postgres@localhost:5433/docvane"

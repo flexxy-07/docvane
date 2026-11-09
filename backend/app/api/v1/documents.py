@@ -3,6 +3,7 @@ import uuid
 
 from fastapi import (
     APIRouter,
+    BackgroundTasks,
     Depends,
     File,
     HTTPException,
@@ -59,6 +60,7 @@ def _to_document_response(doc: Document, service: DocumentService) -> DocumentRe
 )
 async def upload_document(
     file: UploadFile = File(...),
+    background_tasks: BackgroundTasks = BackgroundTasks(),
     tenant_id: uuid.UUID = Depends(get_current_tenant_id),
     session: AsyncSession = Depends(get_tenant_db),
     service: DocumentService = Depends(get_document_service),
@@ -76,17 +78,22 @@ async def upload_document(
         )
 
         if not is_duplicate:
+            dispatched = False
             try:
                 from backend.app.workers.tasks import process_document
 
                 process_document.delay(str(doc.id), str(tenant_id))
-            except Exception as task_err:
-                # Log warning if broker is offline so upload still succeeds
-                import logging
+                dispatched = True
+            except Exception:
+                dispatched = False
 
-                logging.getLogger(__name__).warning(
-                    "Failed to queue background processing task",
-                    extra={"document_id": str(doc.id), "error": str(task_err)},
+            if not dispatched:
+                # In single-container deployments without a separate Redis broker,
+                # execute document processing asynchronously via FastAPI BackgroundTasks
+                from backend.app.workers.tasks import _async_process_document
+
+                background_tasks.add_task(
+                    _async_process_document, str(doc.id), str(tenant_id)
                 )
 
         return DocumentUploadResponse(
