@@ -274,13 +274,23 @@ async def _async_process_document(document_id_str: str, tenant_id_str: str) -> d
         await session.commit()
 
         if next_status == DocumentStatus.INDEXING:
-            try:
-                index_document.delay(str(document_id), str(tenant_id))
-            except Exception as exc:
-                logger.warning(
-                    "Could not dispatch index_document task: %s",
-                    str(exc),
-                )
+            dispatched = False
+            from backend.app.core.config import settings
+
+            if settings.should_use_celery:
+                try:
+                    index_document.delay(str(document_id), str(tenant_id))
+                    dispatched = True
+                except Exception as exc:
+                    logger.warning(
+                        "Could not dispatch index_document task: %s",
+                        str(exc),
+                    )
+                    dispatched = False
+
+            if not dispatched:
+                # Direct in-process indexing ensures documents transition to READY with embeddings
+                await _async_index_document(str(document_id), str(tenant_id))
 
         logger.info(
             "Document parsed and extracted successfully",

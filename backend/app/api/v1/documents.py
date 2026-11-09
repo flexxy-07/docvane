@@ -79,13 +79,16 @@ async def upload_document(
 
         if not is_duplicate:
             dispatched = False
-            try:
-                from backend.app.workers.tasks import process_document
+            from backend.app.core.config import settings
 
-                process_document.delay(str(doc.id), str(tenant_id))
-                dispatched = True
-            except Exception:
-                dispatched = False
+            if settings.should_use_celery:
+                try:
+                    from backend.app.workers.tasks import process_document
+
+                    process_document.delay(str(doc.id), str(tenant_id))
+                    dispatched = True
+                except Exception:
+                    dispatched = False
 
             if not dispatched:
                 # In single-container deployments without a separate Redis broker,

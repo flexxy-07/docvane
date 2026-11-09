@@ -85,15 +85,21 @@ class EmbeddingService:
             # 1. Try Cloud Gemini API if API key is configured
             if self.api_key:
                 try:
-                    response = litellm.embedding(
-                        model=self.model,
-                        input=batch,
-                        api_key=self.api_key,
-                    )
+                    call_kwargs: dict[str, Any] = {
+                        "model": self.model,
+                        "input": batch,
+                        "api_key": self.api_key,
+                    }
+                    if "gemini" in self.model.lower():
+                        call_kwargs["dimensions"] = self.dimensions
+
+                    response = litellm.embedding(**call_kwargs)
                     raw_data = getattr(response, "data", None) or response.get("data", [])  # type: ignore[no-untyped-call]
                     data = cast(list[dict[str, object]], raw_data)
                     for item in data:
                         vec = cast(list[float], item["embedding"])
+                        if len(vec) > self.dimensions:
+                            vec = vec[: self.dimensions]
                         embeddings.append(vec)
                     continue
                 except Exception as exc:

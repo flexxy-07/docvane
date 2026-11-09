@@ -104,38 +104,16 @@ export default function UploadPage() {
       setStatusMessage(
         data.is_duplicate
           ? "This document is already in your workspace."
-          : "Uploaded successfully! Added to your workspace library."
+          : "Uploaded successfully! Processing and indexing document."
       );
-    } catch {
-      // In offline / standalone mode, simulate realistic success flow and persist locally
-      setTimeout(() => {
-        const generatedId = "doc-" + Math.random().toString(36).substring(2, 9);
-        const newDoc: DocumentItem = {
-          id: generatedId,
-          tenant_id: DEFAULT_TENANT_ID,
-          filename: file.name,
-          file_type: file.type || "application/pdf",
-          doc_type: docType,
-          status: "ready",
-          storage_key: `documents/${file.name}`,
-          file_size_bytes: file.size,
-          page_count: Math.max(1, Math.round(file.size / 150000)),
-          retry_count: 0,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        };
-        saveUploadedDocument(newDoc);
-        setUploadedDocId(generatedId);
-        setUploadStatus("success");
-        setStatusMessage(
-          "Document saved! Your paperwork is ready for reading and inquiry."
-        );
-        setIsUploading(false);
-      }, 1000);
-      return;
+    } catch (err: unknown) {
+      console.error("Document upload failed:", err);
+      const errMsg = err instanceof Error ? err.message : "Upload rejected by server";
+      setUploadStatus("error");
+      setStatusMessage(`Upload failed: ${errMsg}`);
+    } finally {
+      setIsUploading(false);
     }
-
-    setIsUploading(false);
   };
 
   const docTypes = [

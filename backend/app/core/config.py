@@ -50,6 +50,13 @@ class Settings(BaseSettings):
     REDIS_URL: str = "redis://localhost:6379/0"
     CELERY_BROKER_URL: str = "redis://localhost:6379/0"
     CELERY_RESULT_BACKEND: str = "redis://localhost:6379/0"
+    USE_CELERY: bool = False
+
+    @property
+    def should_use_celery(self) -> bool:
+        if not self.USE_CELERY:
+            return False
+        return not ("localhost" in self.CELERY_BROKER_URL or "127.0.0.1" in self.CELERY_BROKER_URL)
 
     # Object Storage (Cloudflare R2 / S3)
     S3_ENDPOINT_URL: str = "http://localhost:9000"
@@ -61,7 +68,7 @@ class Settings(BaseSettings):
     # LLM Settings
     GEMINI_API_KEY: str = ""
     DEFAULT_LLM_MODEL: str = "gemini/gemini-3.5-flash-lite"
-    EMBEDDING_MODEL: str = "text-embedding-004"
+    EMBEDDING_MODEL: str = "gemini/gemini-embedding-001"
     EMBEDDING_DIM: int = 768
     RERANKER_MODEL: str = "BAAI/bge-reranker-base"
 

@@ -13,9 +13,74 @@ from backend.app.core.middleware import RequestContextMiddleware
 logger = setup_logging(debug=settings.DEBUG)
 
 
+async def ensure_default_seed() -> None:
+    """Ensures default tenant and admin user exist for foreign key integrity."""
+    import uuid
+    from sqlalchemy import text
+    from backend.app.db.models import Membership, Tenant, User, UserRole
+    from backend.app.db.session import AsyncSessionLocal
+
+    default_tenant_id = uuid.UUID("11111111-1111-1111-1111-111111111111")
+    default_user_id = uuid.UUID("22222222-2222-2222-2222-222222222222")
+
+    try:
+        async with AsyncSessionLocal() as session:
+            res = await session.execute(
+                text("SELECT id FROM tenants WHERE id = :tenant_id"),
+                {"tenant_id": default_tenant_id},
+            )
+            if not res.scalar_one_or_none():
+                tenant = Tenant(
+                    id=default_tenant_id,
+                    name="Default Organization",
+                    slug="default-org",
+                    is_active=True,
+                )
+                session.add(tenant)
+                await session.commit()
+                logger.info("Default tenant seeded: %s", default_tenant_id)
+
+            res_user = await session.execute(
+                text("SELECT id FROM users WHERE id = :user_id"),
+                {"user_id": default_user_id},
+            )
+            if not res_user.scalar_one_or_none():
+                user = User(
+                    id=default_user_id,
+                    email="admin@docvane.local",
+                    hashed_password="hashed_placeholder",
+                    full_name="DocVane Admin",
+                    is_active=True,
+                    is_superuser=True,
+                )
+                session.add(user)
+                await session.commit()
+                logger.info("Default user seeded: %s", default_user_id)
+
+            res_mem = await session.execute(
+                text(
+                    "SELECT id FROM memberships WHERE tenant_id = :tenant_id AND user_id = :user_id"
+                ),
+                {"tenant_id": default_tenant_id, "user_id": default_user_id},
+            )
+            if not res_mem.scalar_one_or_none():
+                mem = Membership(
+                    id=uuid.uuid4(),
+                    tenant_id=default_tenant_id,
+                    user_id=default_user_id,
+                    role=UserRole.OWNER,
+                )
+                session.add(mem)
+                await session.commit()
+                logger.info("Default membership seeded.")
+    except Exception as exc:
+        logger.warning("Could not execute default seed check: %s", exc)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     logger.info(f"Starting {settings.PROJECT_NAME} in [{settings.ENVIRONMENT}] mode...")
+    await ensure_default_seed()
     yield
     logger.info(f"Shutting down {settings.PROJECT_NAME}")
 
