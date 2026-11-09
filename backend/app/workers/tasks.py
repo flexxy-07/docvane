@@ -18,6 +18,33 @@ from backend.app.workers.celery_app import celery_app
 logger = logging.getLogger(__name__)
 
 
+def normalize_pdf_text(text: str | None) -> str | None:
+    """Normalizes fragmented PDF text where single words are split onto separate lines."""
+    if not text:
+        return None
+    import re
+    lines = [l.strip() for l in text.splitlines() if l.strip()]
+    if not lines:
+        return ""
+    short_lines = sum(1 for l in lines if len(l.split()) <= 2)
+    if short_lines / len(lines) > 0.35:
+        reconstructed: list[str] = []
+        current: list[str] = []
+        for line in lines:
+            is_header = bool(re.match(r"^\d+(\.\d+)*\s+", line))
+            if is_header and current:
+                reconstructed.append(" ".join(current))
+                current = []
+            current.append(line)
+            if line.endswith((".", ":", ";", "?", "!")) or is_header or len(current) >= 10:
+                reconstructed.append(" ".join(current))
+                current = []
+        if current:
+            reconstructed.append(" ".join(current))
+        return "\n\n".join(reconstructed)
+    return text
+
+
 def split_pdf_into_pages(pdf_bytes: bytes) -> list[tuple[int, bytes, str | None]]:
     """
     Splits a PDF byte-stream into individual single-page PDF byte-streams.
@@ -36,6 +63,9 @@ def split_pdf_into_pages(pdf_bytes: bytes) -> list[tuple[int, bytes, str | None]
 
         # Extracts whatever direct text is embedded (if any)
         raw_text = page.extract_text() or None
+        if raw_text:
+            raw_text = normalize_pdf_text(raw_text)
+
         page_no = idx + 1
         pages.append((page_no, page_bytes, raw_text))
 

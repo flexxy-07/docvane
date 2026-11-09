@@ -1,4 +1,5 @@
 import logging
+import re
 import time
 from typing import Any, cast
 
@@ -23,7 +24,7 @@ class AnswerGenerator:
     ) -> None:
         self.model: str = model_name or settings.DEFAULT_LLM_MODEL
         self.api_key: str | None = (
-            api_key if api_key is not None else (settings.GEMINI_API_KEY or None)
+            api_key if api_key is not None else (settings.effective_gemini_api_key or None)
         )
 
     def _call_llm(self, prompt: str) -> str:
@@ -34,8 +35,8 @@ class AnswerGenerator:
                 model=self.model,
                 messages=[{"role": "user", "content": prompt}],
                 api_key=self.api_key,
-                temperature=0.1,
-                max_tokens=600,
+                temperature=0.2,
+                max_tokens=800,
             )
             response = cast(ModelResponse, resp)
             return response.choices[0].message.content or ""
@@ -44,7 +45,7 @@ class AnswerGenerator:
             return ""
 
     def generate(self, question: str, chunks: list[dict[str, Any]]) -> str:
-        """Generates an answer from context passages or falls back to extraction."""
+        """Generates a structured, concise answer from context passages."""
         if not chunks:
             return (
                 "I could not find relevant passages in your uploaded documents "
@@ -57,34 +58,40 @@ class AnswerGenerator:
             page = c.get("page_number")
             page_str = f"Page {page}" if page is not None else "Page N/A"
             content = c.get("content", "").strip()
-            context_blocks.append(f"[Source {idx} - Doc: {doc_id}, {page_str}]\n{content}")
+            # Collapse repeated whitespace
+            clean_content = re.sub(r"\n{2,}", "\n", content)
+            context_blocks.append(f"[Source {idx} - Doc: {doc_id}, {page_str}]\n{clean_content}")
 
         context_text = "\n\n".join(context_blocks)
 
         if self.api_key:
             prompt = (
-                "You are Docvane, an expert legal contract and commercial invoice analyst. "
-                "Answer the user's question based strictly on the provided context passages below. "
-                "For every claim made in your answer, cite the corresponding source in brackets "
-                "like [Source 1] or [Page X]. "
-                "If the context does not contain the answer, state that the information "
-                "is missing.\n\n"
-                f"Context:\n{context_text}\n\n"
-                f"Question: {question}\n\n"
-                "Answer:"
+                "You are Docvane, an intelligent document analysis and RAG assistant.\n"
+                "Your objective is to directly, accurately, and concisely answer the user's question "
+                "using ONLY the provided context passages below.\n\n"
+                "Strict Formatting Rules:\n"
+                "1. Answer the question directly and cleanly without unnecessary preamble or repeating raw file headers.\n"
+                "2. When listing team members, names, roles, deliverables, dates, financial amounts, or terms, format them as clean, organized Markdown bullet points or numbered lists.\n"
+                "3. Cite the source for each claim using brackets, e.g., [Source 1] or [Page 1].\n"
+                "4. If the requested information is not mentioned in the context, clearly state that it was not found in the documents.\n\n"
+                f"Context Passages:\n{context_text}\n\n"
+                f"User Question: {question}\n\n"
+                "Direct Structured Answer:"
             )
             llm_res = self._call_llm(prompt).strip()
             if llm_res:
                 return llm_res
 
-        # Deterministic offline fallback: Summarize top chunk content with citation
+        # If LLM call could not be completed, synthesize a clean structured extraction instead of dumping raw text
         top_chunk = chunks[0]
-        top_page = top_chunk.get("page_number")
-        page_ref = f" (Page {top_page})" if top_page is not None else ""
+        top_page = top_chunk.get("page_number", 1)
+        raw = top_chunk.get("content", "")
+        lines = [line.strip() for line in raw.split("\n") if line.strip()]
+        meaningful = [l for l in lines if not l.startswith("[Document:") and len(l) > 2][:8]
+        bullets = "\n".join(f"• {l}" for l in meaningful) if meaningful else raw[:200]
         return (
-            f"Based on the retrieved document records{page_ref}:\n\n"
-            f'"{top_chunk.get("content", "").strip()}"\n\n'
-            f"[Source 1 - Doc: {top_chunk.get('document_id', 'unknown')}]"
+            f"Based on Page {top_page} of your document [Source 1]:\n\n"
+            f"{bullets}"
         )
 
 

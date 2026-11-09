@@ -21,6 +21,66 @@ interface Message {
   responseMeta?: ChatResponse;
 }
 
+function renderFormattedContent(text: string) {
+  const lines = text.split("\n");
+  return (
+    <div className="space-y-2 text-sm sm:text-base leading-relaxed">
+      {lines.map((line, idx) => {
+        const trimmed = line.trim();
+        if (!trimmed) {
+          return <div key={idx} className="h-1.5" />;
+        }
+
+        const parseLine = (str: string) => {
+          const parts = str.split(/(\*\*.*?\*\*|\[Source \d+\]|\[Page \d+\])/g);
+          return parts.map((part, pIdx) => {
+            if (part.startsWith("**") && part.endsWith("**")) {
+              return (
+                <strong key={pIdx} className="font-semibold text-white">
+                  {part.slice(2, -2)}
+                </strong>
+              );
+            }
+            if (part.startsWith("[Source") || part.startsWith("[Page")) {
+              return (
+                <span
+                  key={pIdx}
+                  className="inline-block mx-1 rounded px-1.5 py-0.5 text-[11px] font-sans font-medium bg-emerald-950/80 text-emerald-300 border border-emerald-500/30"
+                >
+                  {part}
+                </span>
+              );
+            }
+            return part;
+          });
+        };
+
+        const numMatch = trimmed.match(/^(\d+[\.\)])\s+(.*)/);
+        if (numMatch) {
+          return (
+            <div key={idx} className="flex items-start gap-2 pl-2">
+              <span className="text-white/50 font-mono text-xs mt-0.5">{numMatch[1]}</span>
+              <div className="flex-1">{parseLine(numMatch[2])}</div>
+            </div>
+          );
+        }
+
+        if (trimmed.startsWith("•") || trimmed.startsWith("-") || trimmed.startsWith("*")) {
+          const content = trimmed.replace(/^[•\-\*]\s*/, "");
+          return (
+            <div key={idx} className="flex items-start gap-2 pl-2">
+              <span className="text-emerald-400 mt-0.5">•</span>
+              <div className="flex-1">{parseLine(content)}</div>
+            </div>
+          );
+        }
+
+        return <p key={idx}>{parseLine(trimmed)}</p>;
+      })}
+    </div>
+  );
+}
+
 export default function ChatPage() {
   const [documents, setDocuments] = useState<DocumentItem[]>([]);
   const [messages, setMessages] = useState<Message[]>([
@@ -169,9 +229,7 @@ export default function ChatPage() {
                   }`}
                 >
                   {/* Message Body */}
-                  <p className="font-serif text-sm sm:text-base leading-relaxed whitespace-pre-wrap">
-                    {msg.text}
-                  </p>
+                  {renderFormattedContent(msg.text)}
 
                   {/* Citations Block */}
                   {meta?.citations && meta.citations.length > 0 && (
