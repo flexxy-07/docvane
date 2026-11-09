@@ -4,8 +4,15 @@ export const dynamic = "force-dynamic";
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { Send, Sparkles, RotateCcw, Copy, Check } from "lucide-react";
-import { ChatResponse, CitationItem, submitChatQuestion } from "@/lib/api";
+import { Send, Sparkles, RotateCcw, Copy, Check, FileText } from "lucide-react";
+import {
+  ChatResponse,
+  CitationItem,
+  DocumentItem,
+  MOCK_DOCUMENTS,
+  fetchDocuments,
+  submitChatQuestion,
+} from "@/lib/api";
 
 interface Message {
   id: string;
@@ -15,6 +22,7 @@ interface Message {
 }
 
 export default function ChatPage() {
+  const [documents, setDocuments] = useState<DocumentItem[]>([]);
   const [messages, setMessages] = useState<Message[]>([
     {
       id: "initial-assistant-msg",
@@ -26,6 +34,10 @@ export default function ChatPage() {
   const [loading, setLoading] = useState(false);
   const [copiedIndex, setCopiedIndex] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    fetchDocuments().then((docs) => setDocuments(docs));
+  }, []);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -89,7 +101,10 @@ export default function ChatPage() {
     setTimeout(() => setCopiedIndex(null), 2000);
   };
 
+  const customDoc = documents.find((d) => !MOCK_DOCUMENTS.some((m) => m.id === d.id));
+
   const sampleQueries = [
+    ...(customDoc ? [`What are the key terms in ${customDoc.filename}?`] : []),
     "What are the payment terms on the Acme invoice?",
     "What is the total balance across all invoices?",
     "Which state governs the master services agreement?",
@@ -125,7 +140,11 @@ export default function ChatPage() {
 
               <div className="flex items-center gap-2 text-xs text-white/70">
                 <span className="h-2 w-2 rounded-full bg-emerald-400" />
-                <span>Citations active</span>
+                <span>
+                  {documents.length > 0
+                    ? `${documents.length} records indexed`
+                    : "Citations active"}
+                </span>
               </div>
             </div>
           </div>
