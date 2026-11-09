@@ -17,6 +17,12 @@ services:
         value: local
       - key: CORS_ORIGINS
         value: "*"
+      - key: DEFAULT_LLM_MODEL
+        value: gemini/gemini-3.5-flash-lite
+      - key: EMBEDDING_MODEL
+        value: gemini/gemini-embedding-001
+      - key: USE_CELERY
+        value: "false"
       - key: DATABASE_URL
         sync: false
       - key: GEMINI_API_KEY

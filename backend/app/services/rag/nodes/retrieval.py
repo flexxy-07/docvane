@@ -92,7 +92,7 @@ async def retrieve_node(
                 # Final rerank against the primary original question
                 rerank_out = retrieval_service.reranker.rerank(
                     query=question,
-                    chunks=fused,
+                    candidates=fused,
                     top_k=top_k,
                 )
                 if inspect.isawaitable(rerank_out):

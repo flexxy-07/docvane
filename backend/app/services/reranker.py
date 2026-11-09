@@ -73,13 +73,16 @@ class RerankerService:
     def rerank(
         self,
         query: str,
-        candidates: list[RetrievedChunk],
+        candidates: list[RetrievedChunk] | None = None,
         top_k: int = 5,
+        chunks: list[RetrievedChunk] | None = None,
     ) -> list[RetrievedChunk]:
         """
         Reranks a list of candidate chunks against the query and returns top_k.
+        Supports both 'candidates' and 'chunks' keyword arguments.
         """
-        if not candidates:
+        candidate_list = candidates if candidates is not None else (chunks or [])
+        if not candidate_list:
             return []
 
         model = self._get_model()
@@ -87,9 +90,9 @@ class RerankerService:
 
         if model is not None:
             try:
-                docs = [c.content for c in candidates]
+                docs = [c.content for c in candidate_list]
                 scores = list(model.rerank(query, docs))
-                for score, candidate in zip(scores, candidates, strict=True):
+                for score, candidate in zip(scores, candidate_list, strict=True):
                     # Sigmoid normalize if needed or clamp [0, 1]
                     s_float = float(score)
                     # Standard sigmoid mapping cross-encoder logits into [0.0, 1.0] range
@@ -103,12 +106,12 @@ class RerankerService:
                 )
                 scored_candidates = [
                     (_heuristic_cross_score(query, c.content, c.score), c)
-                    for c in candidates
+                    for c in candidate_list
                 ]
         else:
             scored_candidates = [
                 (_heuristic_cross_score(query, c.content, c.score), c)
-                for c in candidates
+                for c in candidate_list
             ]
 
         # Sort descending by rerank score
