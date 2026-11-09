@@ -23,16 +23,23 @@ class Settings(BaseSettings):
     PORT: int = 8000
     PROJECT_NAME: str = "Docvane"
     API_V1_STR: str = "/api/v1"
-    CORS_ORIGINS: list[str] = ["*"]
+    CORS_ORIGINS: str = "*"
 
-    @field_validator("CORS_ORIGINS", mode="before")
-    @classmethod
-    def assemble_cors_origins(cls, v: Any) -> list[str]:
-        if isinstance(v, str) and not v.startswith("["):
-            return [i.strip() for i in v.split(",") if i.strip()]
-        elif isinstance(v, list):
-            return v
-        return ["*"]
+    @property
+    def cors_origins_list(self) -> list[str]:
+        val = str(self.CORS_ORIGINS).strip()
+        if not val or val == "*":
+            return ["*"]
+        if val.startswith("["):
+            import json
+
+            try:
+                parsed = json.loads(val)
+                if isinstance(parsed, list):
+                    return [str(p) for p in parsed]
+            except Exception:
+                pass
+        return [item.strip() for item in val.split(",") if item.strip()]
 
     # PostgreSQL + pgvector (local Docker port 5433)
     DATABASE_URL: str = "postgresql+asyncpg://postgres:postgres@localhost:5433/docvane"
