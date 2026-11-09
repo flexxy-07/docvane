@@ -98,7 +98,8 @@ class RerankerService:
                     # Standard sigmoid mapping cross-encoder logits into [0.0, 1.0] range
                     norm_score = 1.0 / (1.0 + math.exp(-s_float))
                     norm_score = min(1.0, max(0.0, norm_score))
-                    scored_candidates.append((norm_score, candidate))
+                    blended = (norm_score * 0.7) + (min(1.0, candidate.score) * 0.3)
+                    scored_candidates.append((round(blended, 4), candidate))
             except Exception as exc:
                 logger.warning(
                     "Reranker execution error (%s); falling back to heuristic.",

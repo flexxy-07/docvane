@@ -1,5 +1,6 @@
 import enum
 import logging
+import re
 import time
 import uuid
 from dataclasses import dataclass, field
@@ -176,6 +177,38 @@ class RetrievalService:
         result = await session.execute(stmt)
         rows = result.all()
 
+        # If strict conjunctive search returned 0 rows, extract substantive keywords and try OR search
+        if not rows:
+            tokens = [
+                w for w in re.findall(r"\w{3,}", clean_query.lower())
+                if w not in {
+                    "the", "a", "an", "and", "or", "is", "are", "was", "were", "to", "of", "in",
+                    "on", "at", "by", "for", "with", "from", "that", "this", "these", "those",
+                    "what", "when", "where", "who", "whom", "which", "how", "can", "you", "tell",
+                    "show", "explain", "about", "all", "any", "may", "will", "shall", "under",
+                    "have", "has", "had", "been", "does", "did", "not", "but", "look", "into",
+                    "whose", "would", "could", "should", "person", "work", "working", "assigned",
+                }
+            ]
+            if tokens:
+                try:
+                    or_expr = " | ".join(tokens)
+                    or_query = func.to_tsquery("english", or_expr)
+                    or_rank = func.ts_rank_cd(ts_vector, or_query)
+                    stmt_or = (
+                        select(DocumentChunk, or_rank.label("rank"))
+                        .where(
+                            DocumentChunk.tenant_id == tenant_id,
+                            ts_vector.op("@@")(or_query),
+                        )
+                    )
+                    stmt_or = self._apply_filters(stmt_or, filters)
+                    stmt_or = stmt_or.order_by(or_rank.desc()).limit(top_k)
+                    res_or = await session.execute(stmt_or)
+                    rows = res_or.all()
+                except Exception as e:
+                    logger.warning("Postgres to_tsquery OR fallback warning: %s", str(e))
+
         chunks: list[RetrievedChunk] = []
         for row in rows:
             chunk = cast(DocumentChunk, row[0])
@@ -267,7 +300,7 @@ class RetrievalService:
                 session, tenant_id, query, top_k=top_k, filters=filters
             )
         elif strategy == RetrievalStrategy.HYBRID_RRF:
-            fetch_limit = max(top_k * 2, 10)
+            fetch_limit = max(top_k * 6, 35)
             vec_candidates = await self.vector_search(
                 session, tenant_id, query, top_k=fetch_limit, filters=filters
             )
@@ -277,7 +310,7 @@ class RetrievalService:
             merged = self.reciprocal_rank_fusion([vec_candidates, kw_candidates], k=60)
             results = merged[:top_k]
         elif strategy == RetrievalStrategy.HYBRID_RERANK:
-            fetch_limit = max(top_k * 3, 15)
+            fetch_limit = max(top_k * 6, 35)
             vec_candidates = await self.vector_search(
                 session, tenant_id, query, top_k=fetch_limit, filters=filters
             )

@@ -110,6 +110,28 @@ async def retrieve_node(
                 filters=active_filter,
             )
 
+            # When the query asks about a person, role, or assignment, inject personnel/team chunks
+            role_cues = (
+                "who", "person", "member", "members", "team", "lead", "leader",
+                "developer", "engineer", "assigned", "role", "roles", "look into",
+                "work on", "responsible"
+            )
+            if any(cue in question.lower() for cue in role_cues):
+                team_candidates = await retrieval_service.search(
+                    session=session,
+                    tenant_id=tenant_id,
+                    query="team members roles developer personnel lead assignment",
+                    strategy=RetrievalStrategy.HYBRID_RRF,
+                    top_k=2,
+                    filters=active_filter,
+                )
+                existing_ids = {c.chunk_id for c in chunks_to_export}
+                for tc in team_candidates:
+                    if tc.chunk_id not in existing_ids:
+                        chunks_to_export.insert(0, tc)
+                        existing_ids.add(tc.chunk_id)
+                chunks_to_export = chunks_to_export[:top_k]
+
         retrieved_chunks = [
             {
                 "chunk_id": str(c.chunk_id),
