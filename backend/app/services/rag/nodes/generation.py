@@ -11,6 +11,15 @@ from backend.app.services.rag.state import RagState
 
 logger = logging.getLogger(__name__)
 
+STOP_WORDS = {
+    "the", "a", "an", "and", "or", "is", "are", "was", "were", "to", "of", "in",
+    "on", "at", "by", "for", "with", "from", "that", "this", "these", "those",
+    "what", "when", "where", "who", "whom", "which", "how", "can", "you", "tell",
+    "show", "explain", "about", "all", "any", "may", "will", "shall", "under",
+    "have", "has", "had", "been", "does", "did", "not", "but", "look", "into",
+    "whose", "would", "could", "should", "name",
+}
+
 
 class AnswerGenerator:
     """
@@ -30,19 +39,30 @@ class AnswerGenerator:
     def _call_llm(self, prompt: str) -> str:
         if not self.api_key:
             return ""
-        try:
-            resp = completion(
-                model=self.model,
-                messages=[{"role": "user", "content": prompt}],
-                api_key=self.api_key,
-                temperature=0.2,
-                max_tokens=800,
-            )
-            response = cast(ModelResponse, resp)
-            return response.choices[0].message.content or ""
-        except Exception as e:
-            logger.error("LLM call failed in AnswerGenerator: %s", str(e))
-            return ""
+        for attempt in range(3):
+            try:
+                resp = completion(
+                    model=self.model,
+                    messages=[{"role": "user", "content": prompt}],
+                    api_key=self.api_key,
+                    temperature=0.2,
+                    max_tokens=800,
+                )
+                response = cast(ModelResponse, resp)
+                content = (response.choices[0].message.content or "").strip()
+                if content:
+                    return content
+            except Exception as e:
+                err_str = str(e).lower()
+                logger.warning("LLM attempt %d failed in AnswerGenerator: %s", attempt + 1, str(e))
+                if attempt < 2 and any(k in err_str for k in ("429", "rate", "quota", "resource_exhausted")):
+                    time.sleep(2.5 * (attempt + 1))
+                    continue
+                elif attempt < 2:
+                    time.sleep(1.0)
+                    continue
+                break
+        return ""
 
     def generate(self, question: str, chunks: list[dict[str, Any]]) -> str:
         """Generates a structured, concise answer from context passages."""
@@ -69,11 +89,15 @@ class AnswerGenerator:
                 "You are Docvane, an intelligent document analysis and RAG assistant.\n"
                 "Your objective is to directly, accurately, and concisely answer the user's question "
                 "using ONLY the provided context passages below.\n\n"
-                "Strict Formatting Rules:\n"
+                "Strict Guidelines:\n"
                 "1. Answer the question directly and cleanly without unnecessary preamble or repeating raw file headers.\n"
-                "2. When listing team members, names, roles, deliverables, dates, financial amounts, or terms, format them as clean, organized Markdown bullet points or numbered lists.\n"
-                "3. Cite the source for each claim using brackets, e.g., [Source 1] or [Page 1].\n"
-                "4. If the requested information is not mentioned in the context, clearly state that it was not found in the documents.\n\n"
+                "2. When asked for a person, role, team member, or specific responsibility (such as website, web development, backend, or project lead), "
+                "directly identify the individual and their title: e.g. '**Name** - Role' [Source X].\n"
+                "3. Understand domain terminology and tech stacks: for example, website or web application corresponds to MERN Stack Developer, Frontend Developer, or Fullstack Developer; "
+                "mobile corresponds to App or Mobile Developer; project leader corresponds to Project Lead or AI/ML Developer & Project Lead.\n"
+                "4. Format structured lists (names, roles, deliverables, dates, financial amounts, or terms) as clean Markdown bullet points.\n"
+                "5. Cite the source for each claim using brackets, e.g., [Source 1] or [Page 1].\n"
+                "6. If the requested information is not mentioned in the context, clearly state that it was not found in the documents.\n\n"
                 f"Context Passages:\n{context_text}\n\n"
                 f"User Question: {question}\n\n"
                 "Direct Structured Answer:"
@@ -86,12 +110,29 @@ class AnswerGenerator:
         top_chunk = chunks[0]
         top_page = top_chunk.get("page_number", 1)
         raw = top_chunk.get("content", "")
-        lines = [line.strip() for line in raw.split("\n") if line.strip()]
-        meaningful = [l for l in lines if not l.startswith("[Document:") and len(l) > 2][:8]
-        bullets = "\n".join(f"• {l}" for l in meaningful) if meaningful else raw[:200]
+        lines = [line.strip() for line in raw.split("\n") if line.strip() and not line.startswith("[Document:")]
+
+        q_tokens = [w for w in re.findall(r"\w{3,}", question.lower()) if w not in STOP_WORDS]
+        matched_lines = []
+        for line in lines:
+            line_lower = line.lower()
+            if any(t in line_lower for t in q_tokens) or any(
+                k in line_lower
+                for k in ("developer", "lead", "member", "role", "mern", "backend", "stack", "team")
+            ):
+                matched_lines.append(line)
+
+        if matched_lines:
+            bullets = "\n".join(f"• {l}" for l in matched_lines[:6])
+            return (
+                f"Based on Page {top_page} of your document [Source 1]:\n\n"
+                f"{bullets}"
+            )
+
+        clean_text = " ".join(lines[:6])
         return (
             f"Based on Page {top_page} of your document [Source 1]:\n\n"
-            f"{bullets}"
+            f"{clean_text[:250]}..."
         )
 
 

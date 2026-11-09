@@ -27,7 +27,7 @@ class QueryTransformer:
     ) -> None:
         self.model: str = model_name or settings.DEFAULT_LLM_MODEL
         self.api_key: str | None = (
-            api_key if api_key is not None else (settings.GEMINI_API_KEY or None)
+            api_key if api_key is not None else (settings.effective_gemini_api_key or None)
         )
 
     def _call_llm(self, prompt: str) -> str:
@@ -51,7 +51,7 @@ class QueryTransformer:
         """Transforms a conversational question into a standalone search query."""
         if self.api_key:
             prompt = (
-                "You are an expert search query optimizer for business contracts and invoices. "
+                "You are an expert search query optimizer for business, technical, and analytical documents. "
                 "Rewrite the following user question into a concise, keyword-dense search query. "
                 "Output ONLY the rewritten search query with no quotes or preamble.\n\n"
                 f"Question: {question}"
@@ -77,7 +77,7 @@ class QueryTransformer:
         if self.api_key:
             prompt = (
                 "Generate 3 distinct search queries related to the following user question "
-                "from different angles (lexical, conceptual, and specific clause terms). "
+                "from different angles (lexical, conceptual, and specific document entities/roles). "
                 "Output each query on a new line with no numbering.\n\n"
                 f"Question: {question}"
             )
@@ -95,27 +95,23 @@ class QueryTransformer:
         return [
             question,
             rewritten,
-            f"{rewritten} clauses and obligations",
+            f"{rewritten} details and specifications",
         ]
 
     def generate_hyde(self, question: str) -> str:
         """Generates a hypothetical passage for passage-to-passage search."""
         if self.api_key:
             prompt = (
-                "Write a short, realistic 2-sentence passage from a legal contract or "
-                "commercial invoice that directly answers this question:\n\n"
+                "Write a short, realistic 2-sentence excerpt from an authoritative document "
+                "(such as a specification, report, manual, or technical document) that directly answers this question:\n\n"
                 f"Question: {question}\n\nPassage:"
             )
             llm_res = self._call_llm(prompt).strip()
             if llm_res:
                 return llm_res
 
-        # Deterministic synthetic fallback
         clean = self.rewrite_query(question)
-        return (
-            f"Under this agreement, the provisions governing {clean} are set forth "
-            "in accordance with standard business terms."
-        )
+        return f"Regarding {clean}, the responsible personnel and specifications are documented herein."
 
 
 def transform_query_node(state: RagState) -> RagState:
@@ -150,4 +146,4 @@ def transform_query_node(state: RagState) -> RagState:
         "rewritten_queries": expanded,
         "retry_count": current_retries,
         "node_latencies": latencies,
-    }
+    }

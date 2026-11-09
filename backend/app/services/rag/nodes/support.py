@@ -17,6 +17,7 @@ STOP_WORDS = {
     "what", "when", "where", "who", "whom", "which", "how", "can", "you", "tell",
     "show", "explain", "about", "all", "any", "may", "will", "shall", "under",
     "have", "has", "had", "been", "does", "did", "not", "but", "based", "document",
+    "source", "page",
 }
 
 
@@ -33,7 +34,7 @@ class AnswerSupportGrader:
     ) -> None:
         self.model: str = model_name or settings.DEFAULT_LLM_MODEL
         self.api_key: str | None = (
-            api_key if api_key is not None else (settings.GEMINI_API_KEY or None)
+            api_key if api_key is not None else (settings.effective_gemini_api_key or None)
         )
 
     def _call_llm(self, prompt: str) -> str:
@@ -56,6 +57,7 @@ class AnswerSupportGrader:
     def grade_support(self, answer: str | None, chunks: list[dict[str, Any]]) -> bool:
         """
         Returns True if answer is grounded in the chunks, False if hallucinated.
+        Evaluates lexical overlap first to minimize external API quota consumption.
         """
         if not answer or not answer.strip():
             return False
@@ -66,6 +68,20 @@ class AnswerSupportGrader:
 
         context = "\n\n".join(c.get("content", "") for c in chunks)
 
+        # 1. Deterministic Grounding Check:
+        # Check that substantive content words in answer appear in the context
+        ans_words = set(re.findall(r"\w{4,}", answer.lower())) - STOP_WORDS
+        ctx_words = set(re.findall(r"\w{4,}", context.lower())) - STOP_WORDS
+
+        if not ans_words:
+            return True
+
+        grounded_count = len(ans_words.intersection(ctx_words))
+        ratio = grounded_count / len(ans_words)
+        if ratio >= 0.35:
+            return True
+
+        # 2. If borderline and API key is present, verify with LLM
         if self.api_key:
             prompt = (
                 "You are an expert fact-checker in a document intelligence system. "
@@ -82,17 +98,7 @@ class AnswerSupportGrader:
             if "no" in llm_res:
                 return False
 
-        # Deterministic offline fallback:
-        # Check that substantive content words in answer appear in the context
-        ans_words = set(re.findall(r"\w{4,}", answer.lower())) - STOP_WORDS
-        ctx_words = set(re.findall(r"\w{4,}", context.lower())) - STOP_WORDS
-
-        if not ans_words:
-            return True
-
-        grounded_count = len(ans_words.intersection(ctx_words))
-        ratio = grounded_count / len(ans_words)
-        return ratio >= 0.4
+        return ratio >= 0.20
 
 
 def check_answer_support_node(state: RagState) -> RagState:
