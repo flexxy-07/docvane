@@ -1,7 +1,11 @@
+import os
 from functools import lru_cache
 from typing import Literal
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+# Ensure LiteLLM uses local cached model costs rather than blocking network calls
+os.environ.setdefault("LITELLM_LOCAL_MODEL_COST_MAP", "True")
 
 
 class Settings(BaseSettings):

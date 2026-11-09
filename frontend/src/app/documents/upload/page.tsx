@@ -11,11 +11,19 @@ import {
   Clock,
   Sparkles,
   ArrowLeft,
+  Check,
 } from "lucide-react";
-import { API_BASE_URL, DEFAULT_TENANT_ID } from "@/lib/api";
+import {
+  API_BASE_URL,
+  DEFAULT_TENANT_ID,
+  DocumentItem,
+  saveUploadedDocument,
+} from "@/lib/api";
 
 export default function UploadPage() {
   const [file, setFile] = useState<File | null>(null);
+  const [docType, setDocType] = useState<string>("contract");
+  const [isDragging, setIsDragging] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadStatus, setUploadStatus] = useState<
     "idle" | "uploading" | "queued" | "success" | "error"
@@ -29,16 +37,38 @@ export default function UploadPage() {
     }
   };
 
+  const handleDragOver = (e: React.DragEvent<HTMLLabelElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent<HTMLLabelElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+  };
+
+  const handleDrop = (e: React.DragEvent<HTMLLabelElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+      setFile(e.dataTransfer.files[0]);
+    }
+  };
+
   const handleUpload = async () => {
     if (!file) return;
 
     setIsUploading(true);
     setUploadStatus("uploading");
-    setStatusMessage("Uploading document...");
+    setStatusMessage("Uploading and indexing document...");
 
     try {
       const formData = new FormData();
       formData.append("file", file);
+      formData.append("doc_type", docType);
 
       const res = await fetch(`${API_BASE_URL}/documents/upload`, {
         method: "POST",
@@ -54,7 +84,22 @@ export default function UploadPage() {
       }
 
       const data = await res.json();
-      setUploadedDocId(data.id);
+      const newDoc: DocumentItem = {
+        id: data.id || "doc-" + Math.random().toString(36).substring(2, 9),
+        tenant_id: DEFAULT_TENANT_ID,
+        filename: file.name,
+        file_type: file.type || "application/pdf",
+        doc_type: docType,
+        status: "ready",
+        storage_key: `documents/${file.name}`,
+        file_size_bytes: file.size,
+        page_count: Math.max(1, Math.round(file.size / 150000)),
+        retry_count: 0,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      };
+      saveUploadedDocument(newDoc);
+      setUploadedDocId(newDoc.id);
       setUploadStatus("success");
       setStatusMessage(
         data.is_duplicate
@@ -62,9 +107,25 @@ export default function UploadPage() {
           : "Uploaded successfully! Added to your workspace library."
       );
     } catch {
-      // In offline / standalone mode, simulate realistic success flow
+      // In offline / standalone mode, simulate realistic success flow and persist locally
       setTimeout(() => {
-        setUploadedDocId("doc-" + Math.random().toString(36).substring(2, 9));
+        const generatedId = "doc-" + Math.random().toString(36).substring(2, 9);
+        const newDoc: DocumentItem = {
+          id: generatedId,
+          tenant_id: DEFAULT_TENANT_ID,
+          filename: file.name,
+          file_type: file.type || "application/pdf",
+          doc_type: docType,
+          status: "ready",
+          storage_key: `documents/${file.name}`,
+          file_size_bytes: file.size,
+          page_count: Math.max(1, Math.round(file.size / 150000)),
+          retry_count: 0,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        };
+        saveUploadedDocument(newDoc);
+        setUploadedDocId(generatedId);
         setUploadStatus("success");
         setStatusMessage(
           "Document saved! Your paperwork is ready for reading and inquiry."
@@ -76,6 +137,13 @@ export default function UploadPage() {
 
     setIsUploading(false);
   };
+
+  const docTypes = [
+    { id: "contract", label: "Contract / MSA" },
+    { id: "invoice", label: "Invoice / Receipt" },
+    { id: "manifest", label: "Bill of Lading / Manifest" },
+    { id: "general", label: "General Paperwork" },
+  ];
 
   return (
     <div className="w-full min-h-[calc(100vh-4rem)] bg-[#1A1C20] text-white">
@@ -101,10 +169,18 @@ export default function UploadPage() {
         <div className="mt-10">
           <label
             htmlFor="file-dropzone"
-            className="group relative flex cursor-pointer flex-col items-center justify-center rounded-3xl border-2 border-dashed border-white/10 bg-[#0E242B]/50 px-8 py-16 text-center transition-all hover:border-white/30 hover:bg-[#0E242B]/80"
+            onDragOver={handleDragOver}
+            onDragEnter={handleDragOver}
+            onDragLeave={handleDragLeave}
+            onDrop={handleDrop}
+            className={`group relative flex cursor-pointer flex-col items-center justify-center rounded-3xl border-2 border-dashed px-8 py-16 text-center transition-all ${
+              isDragging
+                ? "border-[#E68A36] bg-[#0E242B]/90 scale-[1.01]"
+                : "border-white/10 bg-[#0E242B]/50 hover:border-white/30 hover:bg-[#0E242B]/80"
+            }`}
           >
             <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-white/5 text-white transition-transform group-hover:scale-105">
-              <UploadCloud className="h-8 w-8" />
+              <UploadCloud className={`h-8 w-8 ${isDragging ? "text-[#E68A36]" : "text-white"}`} />
             </div>
 
             <h3 className="mt-6 font-serif text-xl font-normal text-white">
@@ -132,6 +208,32 @@ export default function UploadPage() {
             )}
           </label>
 
+          {/* Document Type Selector */}
+          {file && (
+            <div className="mt-6 rounded-2xl border border-white/10 bg-[#0E242B]/60 p-5">
+              <span className="block text-xs text-white/60 uppercase tracking-wider mb-3">
+                Classify Document
+              </span>
+              <div className="flex flex-wrap gap-2">
+                {docTypes.map((dt) => (
+                  <button
+                    key={dt.id}
+                    type="button"
+                    onClick={() => setDocType(dt.id)}
+                    className={`flex items-center gap-1.5 rounded-full px-4 py-1.5 text-xs transition-all ${
+                      docType === dt.id
+                        ? "bg-white text-[#1A1C20] font-medium"
+                        : "border border-white/10 bg-white/5 text-white/70 hover:bg-white/10"
+                    }`}
+                  >
+                    {docType === dt.id && <Check className="h-3 w-3" />}
+                    <span>{dt.label}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Upload Action Bar */}
           {file && (
             <div className="mt-6 flex flex-col sm:flex-row items-center justify-between gap-4 rounded-2xl border border-white/10 bg-[#0E242B] p-5">
@@ -140,28 +242,40 @@ export default function UploadPage() {
                 <div>
                   <p className="text-sm font-medium text-white">{file.name}</p>
                   <p className="text-xs text-white/50">
-                    {(file.size / 1024).toFixed(0)} KB
+                    {(file.size / 1024).toFixed(0)} KB • {docTypes.find((t) => t.id === docType)?.label}
                   </p>
                 </div>
               </div>
 
-              <button
-                onClick={handleUpload}
-                disabled={isUploading}
-                className="w-full sm:w-auto flex items-center justify-center gap-2 rounded-full bg-white px-6 py-2.5 text-xs font-medium text-[#1A1C20] transition-all hover:bg-neutral-200 disabled:opacity-50"
-              >
-                {isUploading ? (
-                  <>
-                    <Clock className="h-3.5 w-3.5 animate-spin" />
-                    <span>Uploading...</span>
-                  </>
-                ) : (
-                  <>
-                    <span>Add to Workspace</span>
-                    <ArrowRight className="h-3.5 w-3.5" />
-                  </>
-                )}
-              </button>
+              <div className="flex items-center gap-3 w-full sm:w-auto">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setFile(null);
+                    setUploadStatus("idle");
+                  }}
+                  className="rounded-full border border-white/10 px-4 py-2 text-xs text-white/60 hover:text-white transition-colors"
+                >
+                  Clear
+                </button>
+                <button
+                  onClick={handleUpload}
+                  disabled={isUploading}
+                  className="flex-1 sm:flex-initial flex items-center justify-center gap-2 rounded-full bg-white px-6 py-2.5 text-xs font-medium text-[#1A1C20] transition-all hover:bg-neutral-200 disabled:opacity-50"
+                >
+                  {isUploading ? (
+                    <>
+                      <Clock className="h-3.5 w-3.5 animate-spin" />
+                      <span>Uploading...</span>
+                    </>
+                  ) : (
+                    <>
+                      <span>Add to Workspace</span>
+                      <ArrowRight className="h-3.5 w-3.5" />
+                    </>
+                  )}
+                </button>
+              </div>
             </div>
           )}
 
@@ -177,13 +291,13 @@ export default function UploadPage() {
               <div className="mt-5 flex items-center gap-4 pt-4 border-t border-emerald-500/20">
                 <Link
                   href="/documents"
-                  className="text-xs text-emerald-400 hover:underline"
+                  className="text-xs font-medium text-emerald-400 hover:underline"
                 >
                   Return to Library →
                 </Link>
                 <Link
                   href="/chat"
-                  className="text-xs text-white/70 hover:underline"
+                  className="text-xs font-medium text-white/80 hover:underline"
                 >
                   Ask a question →
                 </Link>

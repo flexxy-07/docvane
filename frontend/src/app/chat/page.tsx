@@ -2,9 +2,9 @@
 
 export const dynamic = "force-dynamic";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { Send, Sparkles } from "lucide-react";
+import { Send, Sparkles, RotateCcw, Copy, Check } from "lucide-react";
 import { ChatResponse, CitationItem, submitChatQuestion } from "@/lib/api";
 
 interface Message {
@@ -24,6 +24,16 @@ export default function ChatPage() {
   ]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
+  const [copiedIndex, setCopiedIndex] = useState<string | null>(null);
+  const messagesEndRef = useRef<HTMLDivElement | null>(null);
+
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  };
+
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages, loading]);
 
   const handleSend = async (questionText?: string) => {
     const q = (questionText || input).trim();
@@ -63,10 +73,28 @@ export default function ChatPage() {
     }
   };
 
+  const handleReset = () => {
+    setMessages([
+      {
+        id: "initial-assistant-msg",
+        sender: "assistant",
+        text: "Inquiry session refreshed. Ask any question across your uploaded documents, invoices, and agreements.",
+      },
+    ]);
+  };
+
+  const handleCopyCitation = (text: string, id: string) => {
+    navigator.clipboard?.writeText(text);
+    setCopiedIndex(id);
+    setTimeout(() => setCopiedIndex(null), 2000);
+  };
+
   const sampleQueries = [
     "What are the payment terms on the Acme invoice?",
     "What is the total balance across all invoices?",
     "Which state governs the master services agreement?",
+    "What is the limitation of liability cap?",
+    "What cargo is in the Starlight Logistics bill of lading?",
   ];
 
   return (
@@ -84,9 +112,21 @@ export default function ChatPage() {
               </p>
             </div>
 
-            <div className="flex items-center gap-2 text-xs text-white/70">
-              <span className="h-2 w-2 rounded-full bg-emerald-400" />
-              <span>Citations active</span>
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={handleReset}
+                title="Start new inquiry session"
+                className="flex items-center gap-1.5 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-white/60 hover:text-white hover:bg-white/10 transition-colors"
+              >
+                <RotateCcw className="h-3 w-3" />
+                <span>New inquiry</span>
+              </button>
+
+              <div className="flex items-center gap-2 text-xs text-white/70">
+                <span className="h-2 w-2 rounded-full bg-emerald-400" />
+                <span>Citations active</span>
+              </div>
             </div>
           </div>
         </div>
@@ -122,21 +162,45 @@ export default function ChatPage() {
                       </div>
 
                       <div className="space-y-2">
-                        {meta.citations.map((cite, i) => (
-                          <div
-                            key={i}
-                            className="rounded-xl border border-white/10 bg-black/30 p-3 text-xs"
-                          >
-                            <div className="flex items-center justify-between text-[11px] text-white/50 mb-1">
-                              <span className="text-white font-medium">
-                                Source [{i + 1}] • Page {cite.page_number || 1}
-                              </span>
+                        {meta.citations.map((cite, i) => {
+                          const citeKey = `${msg.id}-${i}`;
+                          const isCopied = copiedIndex === citeKey;
+
+                          return (
+                            <div
+                              key={i}
+                              className="group relative rounded-xl border border-white/10 bg-black/30 p-3 text-xs"
+                            >
+                              <div className="flex items-center justify-between text-[11px] text-white/50 mb-1">
+                                <span className="text-white font-medium">
+                                  Source [{i + 1}] • Page {cite.page_number || 1}
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    handleCopyCitation(cite.content || "", citeKey)
+                                  }
+                                  className="opacity-60 group-hover:opacity-100 flex items-center gap-1 text-[10px] text-white/60 hover:text-white transition-opacity"
+                                >
+                                  {isCopied ? (
+                                    <>
+                                      <Check className="h-3 w-3 text-emerald-400" />
+                                      <span className="text-emerald-400">Copied</span>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <Copy className="h-3 w-3" />
+                                      <span>Copy excerpt</span>
+                                    </>
+                                  )}
+                                </button>
+                              </div>
+                              <p className="italic text-white/80 font-serif line-clamp-3">
+                                &ldquo;{cite.content}&rdquo;
+                              </p>
                             </div>
-                            <p className="italic text-white/80 font-serif line-clamp-3">
-                              &ldquo;{cite.content}&rdquo;
-                            </p>
-                          </div>
-                        ))}
+                          );
+                        })}
                       </div>
                     </div>
                   )}
@@ -151,6 +215,8 @@ export default function ChatPage() {
               <span>Searching documents and verifying citations...</span>
             </div>
           )}
+
+          <div ref={messagesEndRef} />
         </div>
 
         {/* Sample Query Suggestions */}

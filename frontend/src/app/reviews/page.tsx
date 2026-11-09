@@ -7,10 +7,13 @@ import Link from "next/link";
 import {
   Check,
   Edit3,
+  CheckCircle2,
+  Filter,
 } from "lucide-react";
 import {
   ReviewTaskItem,
   fetchReviewTasks,
+  saveReviewTaskUpdate,
   API_BASE_URL,
   DEFAULT_TENANT_ID,
 } from "@/lib/api";
@@ -19,6 +22,7 @@ export default function ReviewQueuePage() {
   const [tasks, setTasks] = useState<ReviewTaskItem[]>([]);
   const [selectedTask, setSelectedTask] = useState<ReviewTaskItem | null>(null);
   const [loading, setLoading] = useState(true);
+  const [filterTab, setFilterTab] = useState<"pending" | "resolved" | "all">("pending");
   const [correctionInput, setCorrectionInput] = useState("");
   const [isEditing, setIsEditing] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -27,9 +31,10 @@ export default function ReviewQueuePage() {
   useEffect(() => {
     fetchReviewTasks().then((items) => {
       setTasks(items);
-      if (items.length > 0) {
-        setSelectedTask(items[0]);
-        setCorrectionInput(items[0].field_value || "");
+      const pendingFirst = items.find((t) => t.status !== "resolved") || items[0] || null;
+      if (pendingFirst) {
+        setSelectedTask(pendingFirst);
+        setCorrectionInput(pendingFirst.field_value || "");
       }
       setLoading(false);
     });
@@ -37,13 +42,14 @@ export default function ReviewQueuePage() {
 
   const handleSelectTask = (task: ReviewTaskItem) => {
     setSelectedTask(task);
-    setCorrectionInput(task.field_value || "");
+    setCorrectionInput(task.corrected_value || task.field_value || "");
     setIsEditing(false);
   };
 
   const handleResolve = async (action: "approve" | "correct") => {
     if (!selectedTask) return;
     setSubmitting(true);
+    const resolvedValue = action === "correct" ? correctionInput : selectedTask.field_value;
 
     try {
       await fetch(`${API_BASE_URL}/reviews/${selectedTask.id}/resolve`, {
@@ -61,6 +67,9 @@ export default function ReviewQueuePage() {
       // Graceful offline mock handling
     }
 
+    // Persist to local storage
+    saveReviewTaskUpdate(selectedTask.id, "resolved", resolvedValue);
+
     // Update local state
     setTasks((prev) =>
       prev.map((t) =>
@@ -68,7 +77,7 @@ export default function ReviewQueuePage() {
           ? {
               ...t,
               status: "resolved",
-              corrected_value: action === "correct" ? correctionInput : t.field_value,
+              corrected_value: resolvedValue,
             }
           : t
       )
@@ -79,7 +88,7 @@ export default function ReviewQueuePage() {
         ? {
             ...prev,
             status: "resolved",
-            corrected_value: action === "correct" ? correctionInput : prev.field_value,
+            corrected_value: resolvedValue,
           }
         : null
     );
@@ -96,6 +105,13 @@ export default function ReviewQueuePage() {
   };
 
   const pendingCount = tasks.filter((t) => t.status !== "resolved").length;
+  const resolvedCount = tasks.filter((t) => t.status === "resolved").length;
+
+  const visibleTasks = tasks.filter((t) => {
+    if (filterTab === "pending") return t.status !== "resolved";
+    if (filterTab === "resolved") return t.status === "resolved";
+    return true;
+  });
 
   return (
     <div className="w-full min-h-[calc(100vh-4rem)] bg-[#1A1C20] text-white">
@@ -119,6 +135,12 @@ export default function ReviewQueuePage() {
                 {pendingCount}
               </span>
             </div>
+            <div className="rounded-2xl border border-white/10 bg-[#0E242B] px-5 py-2.5 text-right">
+              <span className="block text-xs text-white/50">Verified</span>
+              <span className="font-serif text-2xl font-normal text-emerald-400">
+                {resolvedCount}
+              </span>
+            </div>
           </div>
         </div>
 
@@ -128,20 +150,68 @@ export default function ReviewQueuePage() {
           </div>
         )}
 
+        {/* Filter Tabs */}
+        <div className="mt-8 flex items-center gap-2">
+          <Filter className="h-3.5 w-3.5 text-white/40 mr-1" />
+          <button
+            onClick={() => setFilterTab("pending")}
+            className={`rounded-full px-4 py-1.5 text-xs transition-all ${
+              filterTab === "pending"
+                ? "bg-white text-[#1A1C20] font-medium"
+                : "border border-white/10 bg-white/5 text-white/70 hover:bg-white/10"
+            }`}
+          >
+            Needs Review ({pendingCount})
+          </button>
+          <button
+            onClick={() => setFilterTab("resolved")}
+            className={`rounded-full px-4 py-1.5 text-xs transition-all ${
+              filterTab === "resolved"
+                ? "bg-white text-[#1A1C20] font-medium"
+                : "border border-white/10 bg-white/5 text-white/70 hover:bg-white/10"
+            }`}
+          >
+            Verified ({resolvedCount})
+          </button>
+          <button
+            onClick={() => setFilterTab("all")}
+            className={`rounded-full px-4 py-1.5 text-xs transition-all ${
+              filterTab === "all"
+                ? "bg-white text-[#1A1C20] font-medium"
+                : "border border-white/10 bg-white/5 text-white/70 hover:bg-white/10"
+            }`}
+          >
+            All Items ({tasks.length})
+          </button>
+        </div>
+
         {/* Main Split Layout: Left List, Right Inspector */}
-        <div className="mt-8 grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+        <div className="mt-6 grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
           {/* Left Column: Tasks List (5 cols) */}
           <div className="lg:col-span-5 space-y-3">
-            <div className="text-xs text-white/50 uppercase tracking-wider px-1">
-              Items ({tasks.length})
-            </div>
-
             {loading ? (
               <div className="py-12 text-center text-xs text-white/40">
                 Loading review items...
               </div>
+            ) : visibleTasks.length === 0 ? (
+              <div className="rounded-2xl border border-dashed border-white/10 p-8 text-center text-xs text-white/50">
+                <CheckCircle2 className="mx-auto h-8 w-8 text-emerald-400 mb-2" />
+                <p className="font-serif text-sm text-white">
+                  {filterTab === "pending"
+                    ? "All items have been reviewed!"
+                    : "No items in this category."}
+                </p>
+                {filterTab === "pending" && (
+                  <button
+                    onClick={() => setFilterTab("all")}
+                    className="mt-3 text-xs text-[#E68A36] hover:underline"
+                  >
+                    View all verified items →
+                  </button>
+                )}
+              </div>
             ) : (
-              tasks.map((task) => {
+              visibleTasks.map((task) => {
                 const isSelected = selectedTask?.id === task.id;
                 const isResolved = task.status === "resolved";
                 const matchPct = Math.round((task.confidence || 0.5) * 100);
@@ -154,7 +224,7 @@ export default function ReviewQueuePage() {
                       isSelected
                         ? "border-[#E68A36] bg-[#14333D]"
                         : isResolved
-                        ? "border-white/5 bg-white/5 opacity-50 hover:opacity-100"
+                        ? "border-white/5 bg-white/5 opacity-60 hover:opacity-100"
                         : "border-white/10 bg-[#0E242B]/80 hover:border-white/20 hover:bg-[#122B33]"
                     }`}
                   >
@@ -280,8 +350,14 @@ export default function ReviewQueuePage() {
                       </div>
                     </div>
                   ) : (
-                    <div className="rounded-xl border border-white/10 bg-black/20 p-4 text-sm font-serif text-white">
-                      {selectedTask.corrected_value || selectedTask.field_value}
+                    <div className="rounded-xl border border-white/10 bg-black/20 p-4 text-sm font-serif text-white flex items-center justify-between">
+                      <span>{selectedTask.corrected_value || selectedTask.field_value}</span>
+                      {selectedTask.status === "resolved" && (
+                        <span className="text-xs text-emerald-400 flex items-center gap-1">
+                          <Check className="h-3.5 w-3.5" />
+                          <span>Confirmed</span>
+                        </span>
+                      )}
                     </div>
                   )}
 

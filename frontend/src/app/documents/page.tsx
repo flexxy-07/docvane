@@ -19,18 +19,32 @@ export default function DocumentsPage() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [categoryFilter, setCategoryFilter] = useState<string>("all");
 
-  useEffect(() => {
+  const loadDocs = () => {
     fetchDocuments().then((items) => {
       setDocuments(items);
       setLoading(false);
     });
+  };
+
+  useEffect(() => {
+    loadDocs();
+
+    const handleUpdated = () => loadDocs();
+    window.addEventListener("docvane:documents_updated", handleUpdated);
+    return () => window.removeEventListener("docvane:documents_updated", handleUpdated);
   }, []);
 
   const filteredDocs = documents.filter((doc) => {
-    const matchesSearch = doc.filename.toLowerCase().includes(search.toLowerCase());
+    const matchesSearch =
+      doc.filename.toLowerCase().includes(search.toLowerCase()) ||
+      (doc.doc_type && doc.doc_type.toLowerCase().includes(search.toLowerCase()));
     const matchesStatus = statusFilter === "all" || doc.status === statusFilter;
-    return matchesSearch && matchesStatus;
+    const matchesCategory =
+      categoryFilter === "all" ||
+      (doc.doc_type && doc.doc_type.toLowerCase() === categoryFilter.toLowerCase());
+    return matchesSearch && matchesStatus && matchesCategory;
   });
 
   const getStatusBadge = (status: string) => {
@@ -88,32 +102,66 @@ export default function DocumentsPage() {
         </div>
 
         {/* Search and Filters */}
-        <div className="mt-8 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-4">
-          <div className="relative flex-1 max-w-md">
-            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-white/40" />
-            <input
-              type="text"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search paperwork by title or party..."
-              className="w-full rounded-full border border-white/10 bg-white/5 py-2.5 pl-10 pr-4 text-sm text-white placeholder-white/40 outline-none focus:border-white/30"
-            />
+        <div className="mt-8 space-y-4">
+          <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-4">
+            <div className="relative flex-1 max-w-md">
+              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-white/40" />
+              <input
+                type="text"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search paperwork by title or type..."
+                className="w-full rounded-full border border-white/10 bg-white/5 py-2.5 pl-10 pr-4 text-sm text-white placeholder-white/40 outline-none focus:border-white/30"
+              />
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-xs text-white/40 mr-1">Status:</span>
+              {[
+                { id: "all", label: "All" },
+                { id: "ready", label: "Verified" },
+                { id: "needs_review", label: "Needs review" },
+              ].map((filter) => (
+                <button
+                  key={filter.id}
+                  onClick={() => setStatusFilter(filter.id)}
+                  className={`rounded-full px-4 py-1.5 text-xs transition-all ${
+                    statusFilter === filter.id
+                      ? "bg-white text-[#1A1C20] font-medium"
+                      : "border border-white/10 bg-white/5 text-white/70 hover:bg-white/10"
+                  }`}
+                >
+                  {filter.label}
+                </button>
+              ))}
+            </div>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2">
-            {["all", "ready", "needs_review"].map((filter) => (
+          {/* Document Type Chips */}
+          <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-white/5">
+            <span className="text-xs text-white/40 mr-1">Type:</span>
+            {[
+              { id: "all", label: "All Types" },
+              { id: "contract", label: "Contracts & MSAs" },
+              { id: "invoice", label: "Invoices" },
+              { id: "manifest", label: "Manifests" },
+            ].map((cat) => (
               <button
-                key={filter}
-                onClick={() => setStatusFilter(filter)}
-                className={`rounded-full px-4 py-1.5 text-xs transition-all capitalize ${
-                  statusFilter === filter
-                    ? "bg-white text-[#1A1C20] font-medium"
-                    : "border border-white/10 bg-white/5 text-white/70 hover:bg-white/10"
+                key={cat.id}
+                onClick={() => setCategoryFilter(cat.id)}
+                className={`rounded-full px-3 py-1 text-xs transition-all ${
+                  categoryFilter === cat.id
+                    ? "bg-[#E68A36] text-white font-medium"
+                    : "text-white/60 hover:text-white hover:bg-white/5"
                 }`}
               >
-                {filter.replace("_", " ")}
+                {cat.label}
               </button>
             ))}
+
+            <span className="ml-auto text-xs text-white/40">
+              Showing {filteredDocs.length} of {documents.length}
+            </span>
           </div>
         </div>
 
@@ -165,10 +213,14 @@ export default function DocumentsPage() {
                   </span>
 
                   <Link
-                    href={doc.status === "needs_review" ? "/reviews" : "/chat"}
+                    href={
+                      doc.status === "needs_review"
+                        ? `/reviews?docId=${doc.id}`
+                        : `/chat?docId=${doc.id}`
+                    }
                     className="flex items-center gap-1 text-xs font-medium text-white/80 hover:text-white transition-colors"
                   >
-                    <span>{doc.status === "needs_review" ? "Review" : "Open"}</span>
+                    <span>{doc.status === "needs_review" ? "Review" : "Inquire"}</span>
                     <ArrowUpRight className="h-3 w-3" />
                   </Link>
                 </div>
