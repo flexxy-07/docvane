@@ -23,7 +23,7 @@ export default function RootLayout({
           rel="stylesheet"
         />
       </head>
-      <body className="min-h-full flex flex-col bg-[#1A1C20] text-[#111827]">
+      <body className="min-h-full flex flex-col bg-[#1A1C20] text-[#E2E4E9]">
         <Navigation />
         <main className="flex-1">{children}</main>
       </body>
