@@ -11,20 +11,11 @@ import {
   Copy,
   Check,
   FileText,
-  BookOpen,
-  ShieldCheck,
-  Users,
-  Layers,
-  Sparkles,
-  FileQuestion,
-  ArrowRight,
-  Search,
-  ExternalLink,
-  ChevronRight,
+  X,
+  Loader2,
 } from "lucide-react";
 import {
   ChatResponse,
-  CitationItem,
   DocumentItem,
   fetchDocuments,
   submitChatQuestion,
@@ -34,15 +25,7 @@ interface Message {
   id: string;
   sender: "user" | "assistant";
   text: string;
-  timestamp: string;
   responseMeta?: ChatResponse;
-}
-
-interface QueryStarter {
-  category: string;
-  query: string;
-  description: string;
-  icon: typeof Users;
 }
 
 /* ─────────────────────────────────────────────
@@ -59,7 +42,6 @@ function cleanCitationExcerpt(rawContent: string): {
   let docName: string | undefined;
   let pageNum: number | undefined;
 
-  // Match "[Document: <name> | Page: <num>]"
   const docMatch = cleanText.match(/^\[Document:\s*([^|]+?)\s*\|\s*Page:\s*(\d+)\]\s*/i);
   if (docMatch) {
     docName = docMatch[1].trim();
@@ -67,30 +49,26 @@ function cleanCitationExcerpt(rawContent: string): {
     cleanText = cleanText.slice(docMatch[0].length).trim();
   }
 
-  // Also clean up any leading quotation marks or trailing quotes if doubled
   cleanText = cleanText.replace(/^["“']+|["”']+$/g, "").trim();
-
-  // Normalize excessive spacing caused by OCR linebreaks
   cleanText = cleanText.replace(/\s+/g, " ");
 
   return { docName, pageNum, cleanText };
 }
 
 /* ─────────────────────────────────────────────
-   renderFormattedContent: Refined editorial typography
+   renderFormattedContent: Clean, natural typography
 ───────────────────────────────────────────── */
 function renderFormattedContent(text: string) {
   const lines = text.split("\n");
   return (
-    <div className="space-y-2.5 text-sm sm:text-[15px] leading-relaxed text-[#E2E4E9]">
+    <div className="space-y-2 text-sm sm:text-[15px] leading-relaxed text-[#E2E4E9]">
       {lines.map((line, idx) => {
         const trimmed = line.trim();
         if (!trimmed) {
-          return <div key={idx} className="h-1.5" />;
+          return <div key={idx} className="h-1" />;
         }
 
         const parseLine = (str: string) => {
-          // Match bold **...**, inline code `...`, [Source \d+], and [Page \d+]
           const parts = str.split(/(\*\*.*?\*\*|`.*?`|\[Source\s+\d+\]|\[Page\s+\d+\])/g);
           return parts.map((part, pIdx) => {
             if (part.startsWith("**") && part.endsWith("**")) {
@@ -114,7 +92,7 @@ function renderFormattedContent(text: string) {
               return (
                 <span
                   key={pIdx}
-                  className="inline-flex items-center gap-1 mx-1 rounded px-1.5 py-0.5 text-[11px] font-mono font-medium bg-emerald-500/10 text-emerald-300 border border-emerald-500/30 align-baseline"
+                  className="inline-flex items-center mx-1 rounded px-1.5 py-0.2 text-[11px] font-mono text-emerald-300 bg-emerald-500/10 border border-emerald-500/20"
                 >
                   {part}
                 </span>
@@ -124,12 +102,11 @@ function renderFormattedContent(text: string) {
           });
         };
 
-        // Numbered list: "1." or "1)"
         const numMatch = trimmed.match(/^(\d+[\.\)])\s+(.*)/);
         if (numMatch) {
           return (
-            <div key={idx} className="flex items-start gap-2.5 pl-2 py-0.5">
-              <span className="text-amber-300/80 font-mono text-xs mt-0.5 select-none">
+            <div key={idx} className="flex items-start gap-2 pl-2 py-0.5">
+              <span className="text-white/40 font-mono text-xs mt-0.5 select-none">
                 {numMatch[1]}
               </span>
               <div className="flex-1">{parseLine(numMatch[2])}</div>
@@ -137,22 +114,20 @@ function renderFormattedContent(text: string) {
           );
         }
 
-        // Bullet point: "•", "-", "*"
         if (trimmed.startsWith("•") || trimmed.startsWith("-") || trimmed.startsWith("*")) {
           const content = trimmed.replace(/^[•\-\*]\s*/, "");
           return (
-            <div key={idx} className="flex items-start gap-2.5 pl-2 py-0.5">
+            <div key={idx} className="flex items-start gap-2 pl-2 py-0.5">
               <span className="text-emerald-400 text-sm mt-0.5 select-none leading-none">•</span>
               <div className="flex-1">{parseLine(content)}</div>
             </div>
           );
         }
 
-        // Section header: "### Header" or "## Header"
         if (trimmed.startsWith("###") || trimmed.startsWith("##")) {
           const title = trimmed.replace(/^#+\s*/, "");
           return (
-            <h4 key={idx} className="font-serif text-base font-semibold text-white mt-3 mb-1">
+            <h4 key={idx} className="font-medium text-white text-base mt-2 mb-1">
               {parseLine(title)}
             </h4>
           );
@@ -203,21 +178,20 @@ function ChatContent() {
     const q = (questionText || input).trim();
     if (!q || loading) return;
 
-    const timeStr = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
     const userMsgId = "user-" + Date.now();
     const newMessages: Message[] = [
       ...messages,
-      { id: userMsgId, sender: "user", text: q, timestamp: timeStr },
+      { id: userMsgId, sender: "user", text: q },
     ];
     setMessages(newMessages);
     setInput("");
     setLoading(true);
 
     try {
-      // If scoped to a specific document, inform retrieval seamlessly
-      const effectiveQuestion = activeDoc && !q.toLowerCase().includes(activeDoc.filename.toLowerCase())
-        ? `${q} (regarding document ${activeDoc.filename})`
-        : q;
+      const effectiveQuestion =
+        activeDoc && !q.toLowerCase().includes(activeDoc.filename.toLowerCase())
+          ? `${q} (regarding document ${activeDoc.filename})`
+          : q;
 
       const result = await submitChatQuestion(effectiveQuestion);
       setMessages([
@@ -226,7 +200,6 @@ function ChatContent() {
           id: "assistant-" + Date.now(),
           sender: "assistant",
           text: result.answer,
-          timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
           responseMeta: result,
         },
       ]);
@@ -236,8 +209,7 @@ function ChatContent() {
         {
           id: "assistant-err-" + Date.now(),
           sender: "assistant",
-          text: "Could not retrieve an answer at this moment. Please check your connection and try again.",
-          timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+          text: "Sorry, I could not retrieve an answer right now. Please try again.",
         },
       ]);
     } finally {
@@ -257,283 +229,105 @@ function ChatContent() {
     setTimeout(() => setCopiedKey(null), 2000);
   };
 
-  // Curated, contextual query starters based on active document
-  const starters = useMemo<QueryStarter[]>(() => {
-    const docName = (activeDoc?.filename || "").toLowerCase();
-    const docType = (activeDoc?.doc_type || "").toLowerCase();
-
-    const isTechOrSRS =
-      docName.includes("srs") ||
-      docName.includes("specification") ||
-      docName.includes("architecture") ||
-      docName.includes("smart document");
-
-    if (isTechOrSRS) {
+  // Simple, clean suggestions
+  const suggestedQueries = useMemo<string[]>(() => {
+    const name = (activeDoc?.filename || "").toLowerCase();
+    if (name.includes("srs") || name.includes("specification") || name.includes("smart document")) {
       return [
-        {
-          category: "PERSONNEL & ROLES",
-          query: "List the team members, project leads, and their designated roles.",
-          description: "Extracts full developer roster, leadership, and assignments",
-          icon: Users,
-        },
-        {
-          category: "SYSTEM ARCHITECTURE",
-          query: "What is the overall system architecture and proposed tech stack?",
-          description: "Outlines frontend, backend, AI modules, and framework choices",
-          icon: Layers,
-        },
-        {
-          category: "CORE OBJECTIVES",
-          query: "What is the primary purpose and scope of this project?",
-          description: "Synthesizes system vision, background, and target goals",
-          icon: BookOpen,
-        },
-        {
-          category: "REQUIREMENTS",
-          query: "What are the critical functional requirements and design constraints?",
-          description: "Surfaces priority capabilities, data flows, and performance criteria",
-          icon: ShieldCheck,
-        },
+        "Summarize this document",
+        "Who are the team members and their roles?",
+        "What is the system architecture?",
+        "What are the main functional requirements?",
       ];
     }
-
-    if (docType === "invoice") {
+    if (activeDoc?.doc_type === "invoice") {
       return [
-        {
-          category: "TOTALS & TERMS",
-          query: "What is the total amount due, payment terms, and invoice date?",
-          description: "Finds vendor, balance due, and payment terms",
-          icon: BookOpen,
-        },
-        {
-          category: "LINE ITEMS",
-          query: "List all line items, quantities, and unit pricing.",
-          description: "Breaks down all itemized charges and services",
-          icon: Layers,
-        },
-        {
-          category: "REMITTANCE",
-          query: "What are the payment instructions and banking details?",
-          description: "Extracts routing, account details, and address",
-          icon: ShieldCheck,
-        },
-        {
-          category: "TAXES & ADJUSTMENTS",
-          query: "Are there any taxes, discounts, or penalties applied?",
-          description: "Verifies tax calculations, credits, and penalties",
-          icon: FileQuestion,
-        },
+        "What is the total amount due?",
+        "What are the payment terms?",
+        "List all line items and pricing",
       ];
     }
-
-    if (docType === "contract") {
+    if (activeDoc?.doc_type === "contract") {
       return [
-        {
-          category: "GOVERNING JURISDICTION",
-          query: "Which state or jurisdiction governs this agreement?",
-          description: "Identifies controlling law, venue, and arbitration rules",
-          icon: ShieldCheck,
-        },
-        {
-          category: "LIABILITY & INDEMNITY",
-          query: "What is the limitation of liability cap and indemnification clause?",
-          description: "Surfaces liability limits and indemnification obligations",
-          icon: FileQuestion,
-        },
-        {
-          category: "TERMINATION",
-          query: "What are the termination provisions, notice periods, and breach terms?",
-          description: "Details conditions under which agreement may be ended",
-          icon: BookOpen,
-        },
-        {
-          category: "KEY OBLIGATIONS",
-          query: "What are the primary performance obligations and deliverables?",
-          description: "Summarizes commitments, milestones, and warranties",
-          icon: Layers,
-        },
+        "Summarize the main terms of this agreement",
+        "Which state or jurisdiction governs this contract?",
+        "What is the limitation of liability?",
       ];
     }
-
-    // Default general starters
     return [
-      {
-        category: "EXECUTIVE SUMMARY",
-        query: activeDoc
-          ? `Summarize the primary purpose and scope of ${activeDoc.filename}.`
-          : "Summarize the primary obligations and terms across all active paperwork.",
-        description: "Synthesizes core objectives, parties, and scope",
-        icon: BookOpen,
-      },
-      {
-        category: "PERSONNEL & STAKEHOLDERS",
-        query: "List the key team members, leads, and stakeholders identified in the records.",
-        description: "Extracts individuals, assigned roles, and organizations",
-        icon: Users,
-      },
-      {
-        category: "SPECIFICATIONS & TERMS",
-        query: "What are the core technical specifications or legal covenants?",
-        description: "Surfaces primary technical requirements or commitments",
-        icon: Layers,
-      },
-      {
-        category: "DELIVERABLES & DATES",
-        query: "What are the key deadlines, deliverables, or payment milestones?",
-        description: "Tracks time-sensitive requirements and obligations",
-        icon: ShieldCheck,
-      },
+      "Summarize the key points of this document",
+      "Who are the people or organizations mentioned?",
+      "What are the important dates or deadlines?",
     ];
   }, [activeDoc]);
 
   return (
-    <div className="relative flex flex-col h-[calc(100vh-4rem)] w-full bg-[#1A1C20] text-[#E2E4E9]">
-      {/* ─── Top Header Bar ─── */}
-      <header className="flex-shrink-0 border-b border-white/[0.08] bg-[#1A1C20]/95 px-6 sm:px-8 py-4 backdrop-blur-md z-10">
-        <div className="mx-auto flex max-w-5xl items-center justify-between gap-4">
-          <div>
-            <div className="flex items-center gap-3">
-              <h1 className="font-serif text-2xl sm:text-3xl font-normal tracking-tight text-white">
-                Document Inquirer
-              </h1>
-              {activeDoc && (
-                <span className="hidden sm:inline-flex items-center gap-1.5 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-0.5 text-xs font-mono text-emerald-300">
-                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                  Scoped: {activeDoc.filename}
-                </span>
-              )}
-            </div>
-            <p className="mt-1 text-xs text-[#A0A5AD]">
-              Cryptographically grounded retrieval with page-level citations.
-            </p>
-          </div>
-
+    <div className="flex flex-col h-[calc(100vh-4rem)] w-full bg-[#1A1C20] text-[#E2E4E9]">
+      {/* ─── Minimal Header Bar ─── */}
+      <header className="flex-shrink-0 border-b border-white/[0.08] px-6 sm:px-8 py-3.5 bg-[#1A1C20]">
+        <div className="mx-auto flex max-w-4xl items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-            {activeDoc ? (
-              <button
-                type="button"
-                onClick={() => setSelectedDocId(null)}
-                title="Search across all documents in library"
-                className="flex items-center gap-1.5 rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-white/70 hover:text-white hover:bg-white/10 transition-colors"
-              >
-                <span>Query entire library</span>
-              </button>
-            ) : (
-              <div className="flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-white/70">
-                <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
-                <span>
-                  {documents.length > 0 ? `${documents.length} records indexed` : "Index active"}
-                </span>
-              </div>
-            )}
-
-            {messages.length > 0 && (
-              <button
-                type="button"
-                onClick={handleReset}
-                title="Clear current inquiry session"
-                className="flex items-center gap-1.5 rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-white/60 hover:text-white hover:bg-white/10 transition-colors"
-              >
-                <RotateCcw className="h-3 w-3" />
-                <span className="hidden sm:inline">New inquiry</span>
-              </button>
+            <h1 className="font-serif text-xl sm:text-2xl font-normal text-white">
+              Document Inquirer
+            </h1>
+            {activeDoc && (
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-xs text-white/80">
+                <FileText className="h-3 w-3 text-white/50" />
+                <span className="max-w-[200px] truncate">{activeDoc.filename}</span>
+                <button
+                  type="button"
+                  onClick={() => setSelectedDocId(null)}
+                  title="Search all documents"
+                  className="text-white/40 hover:text-white ml-0.5"
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              </span>
             )}
           </div>
+
+          {messages.length > 0 && (
+            <button
+              type="button"
+              onClick={handleReset}
+              className="flex items-center gap-1.5 text-xs text-white/60 hover:text-white transition-colors"
+            >
+              <RotateCcw className="h-3.5 w-3.5" />
+              <span>New chat</span>
+            </button>
+          )}
         </div>
       </header>
 
-      {/* ─── Main Chat / Welcome Scroll Container ─── */}
-      <main className="flex-1 overflow-y-auto px-4 sm:px-8 py-6">
-        <div className="mx-auto max-w-4xl">
+      {/* ─── Scroll Area ─── */}
+      <main className="flex-1 overflow-y-auto px-4 sm:px-6 py-6">
+        <div className="mx-auto max-w-3xl">
           {messages.length === 0 ? (
             /* ══════════════════════════════════════════
-               EDITORIAL WELCOME CANVAS (Empty State)
+               CLEAN, SIMPLE EMPTY STATE
                ══════════════════════════════════════════ */
-            <div className="flex flex-col items-center justify-center pt-8 pb-12 text-center animate-in fade-in duration-300">
-              {/* Emblem */}
-              <div className="mb-6 flex h-14 w-14 items-center justify-center rounded-2xl border border-white/15 bg-white/[0.04] shadow-inner">
-                <BookOpen className="h-7 w-7 text-amber-200/90 stroke-[1.5]" />
-              </div>
-
-              {/* Monogram tag */}
-              <span className="font-mono text-[11px] uppercase tracking-widest text-[#A0A5AD] mb-2">
-                VERIFIED DOCUMENT RETRIEVAL
-              </span>
-
-              {/* Heading */}
-              <h2 className="font-serif text-3xl sm:text-4xl lg:text-5xl font-normal text-white tracking-tight max-w-xl">
-                Read between the lines of your paperwork.
+            <div className="flex flex-col items-center justify-center pt-16 pb-8 text-center">
+              <h2 className="font-serif text-2xl sm:text-3xl font-normal text-white">
+                {activeDoc
+                  ? `Ask anything about ${activeDoc.filename}`
+                  : "Ask anything about your documents"}
               </h2>
-
-              {/* Subtext */}
-              <p className="mt-4 max-w-lg text-sm sm:text-base text-[#A0A5AD] leading-relaxed">
-                Inquire across your contracts, specifications, and records. Every answer is
-                extracted directly from primary passages with exact page-level citations.
+              <p className="mt-2 text-sm text-[#A0A5AD]">
+                Answers include direct page citations and excerpts.
               </p>
 
-              {/* Active Document Badge Card (if scoped) */}
-              {activeDoc ? (
-                <div className="mt-8 flex items-center gap-3 rounded-2xl border border-emerald-500/25 bg-emerald-950/20 px-5 py-3 text-left">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-300">
-                    <FileText className="h-5 w-5" />
-                  </div>
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm font-medium text-white">{activeDoc.filename}</span>
-                      <span className="rounded-full bg-emerald-500/20 px-2 py-0.5 text-[10px] font-mono text-emerald-300">
-                        {activeDoc.page_count} pages
-                      </span>
-                    </div>
-                    <span className="text-xs text-white/50">
-                      Primary manuscript loaded • Grounded questions scoped to this file
-                    </span>
-                  </div>
-                </div>
-              ) : (
-                <div className="mt-8 flex items-center gap-2 text-xs text-white/50">
-                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
-                  <span>Cross-searching all verified documents in your workspace</span>
-                </div>
-              )}
-
-              {/* Curated Inquiries Grid */}
-              <div className="mt-10 w-full text-left">
-                <div className="mb-3 flex items-center justify-between px-1">
-                  <span className="font-mono text-[11px] uppercase tracking-wider text-white/40">
-                    Curated Inquiries
-                  </span>
-                  <span className="text-xs text-white/40">Select a prompt to begin</span>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  {starters.map((starter, idx) => {
-                    const Icon = starter.icon;
-                    return (
-                      <button
-                        key={idx}
-                        type="button"
-                        onClick={() => handleSend(starter.query)}
-                        className="group relative flex flex-col justify-between rounded-xl border border-white/10 bg-[#22252A]/70 p-4 transition-all duration-200 hover:border-white/30 hover:bg-[#2A2E35] text-left"
-                      >
-                        <div>
-                          <div className="flex items-center justify-between mb-2">
-                            <span className="font-mono text-[10px] uppercase tracking-wider text-amber-300/80">
-                              {starter.category}
-                            </span>
-                            <Icon className="h-4 w-4 text-white/30 group-hover:text-white/80 transition-colors" />
-                          </div>
-                          <p className="font-serif text-sm font-normal text-white group-hover:text-amber-100 transition-colors">
-                            &ldquo;{starter.query}&rdquo;
-                          </p>
-                        </div>
-                        <div className="mt-3 flex items-center justify-between pt-2 border-t border-white/[0.06] text-[11px] text-[#A0A5AD]">
-                          <span>{starter.description}</span>
-                          <ArrowRight className="h-3 w-3 opacity-40 group-hover:opacity-100 group-hover:translate-x-0.5 transition-all text-white" />
-                        </div>
-                      </button>
-                    );
-                  })}
-                </div>
+              {/* Simple suggested question pills */}
+              <div className="mt-8 flex flex-wrap justify-center gap-2 max-w-xl">
+                {suggestedQueries.map((query, idx) => (
+                  <button
+                    key={idx}
+                    type="button"
+                    onClick={() => handleSend(query)}
+                    className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-xs text-white/80 hover:bg-white/10 hover:border-white/20 hover:text-white transition-colors"
+                  >
+                    {query}
+                  </button>
+                ))}
               </div>
             </div>
           ) : (
@@ -547,64 +341,28 @@ function ChatContent() {
 
                 if (isUser) {
                   return (
-                    <div key={msg.id} className="flex flex-col items-end animate-in fade-in duration-200">
-                      <div className="max-w-2xl rounded-2xl rounded-tr-sm border border-white/10 bg-[#252830] px-5 py-4 text-white shadow-md">
-                        <div className="mb-1 flex items-center justify-between gap-4 text-[11px] font-mono text-white/40">
-                          <span>You</span>
-                          <span>{msg.timestamp}</span>
-                        </div>
-                        <p className="text-sm sm:text-base leading-relaxed text-[#F3F4F6]">
-                          {msg.text}
-                        </p>
+                    <div key={msg.id} className="flex justify-end">
+                      <div className="max-w-xl rounded-2xl bg-[#262930] px-4 py-3 text-white text-sm sm:text-[15px] leading-relaxed">
+                        {msg.text}
                       </div>
                     </div>
                   );
                 }
 
-                // Assistant Message Card
                 return (
-                  <div key={msg.id} className="flex flex-col items-start animate-in fade-in duration-200">
-                    <div className="w-full max-w-3xl rounded-2xl rounded-tl-sm border border-white/[0.12] bg-[#181A1F] p-6 text-[#E2E4E9] shadow-xl">
-                      {/* Assistant Card Header */}
-                      <div className="mb-4 flex items-center justify-between border-b border-white/[0.08] pb-3">
-                        <div className="flex items-center gap-2.5">
-                          <div className="flex h-6 w-6 items-center justify-center rounded-lg bg-emerald-500/15 border border-emerald-500/30 text-emerald-400">
-                            <Sparkles className="h-3.5 w-3.5" />
-                          </div>
-                          <span className="font-serif text-sm font-medium text-white tracking-wide">
-                            DocVane Inquirer
-                          </span>
-                        </div>
+                  <div key={msg.id} className="flex justify-start">
+                    <div className="w-full rounded-2xl border border-white/[0.08] bg-[#1B1D22] p-5 text-[#E2E4E9] shadow-sm">
+                      {/* Answer */}
+                      <div>{renderFormattedContent(msg.text)}</div>
 
-                        <div className="flex items-center gap-2">
-                          <span className="inline-flex items-center gap-1 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-[10px] font-mono uppercase tracking-wider text-emerald-300">
-                            <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
-                            Grounded
-                          </span>
-                          <span className="text-[11px] font-mono text-white/40">
-                            {msg.timestamp}
-                          </span>
-                        </div>
-                      </div>
-
-                      {/* Formatted Answer */}
-                      <div className="prose-invert">
-                        {renderFormattedContent(msg.text)}
-                      </div>
-
-                      {/* Verified Passages / Citations Block */}
+                      {/* Sources (clean, minimal) */}
                       {meta?.citations && meta.citations.length > 0 && (
-                        <div className="mt-6 border-t border-white/[0.08] pt-4">
-                          <div className="mb-3 flex items-center justify-between">
-                            <span className="font-mono text-[11px] uppercase tracking-wider text-white/50">
-                              Verified Passages ({meta.citations.length})
-                            </span>
-                            <span className="text-[11px] text-white/40">
-                              Direct from primary document
-                            </span>
-                          </div>
+                        <div className="mt-4 border-t border-white/[0.08] pt-3">
+                          <span className="text-xs font-medium text-white/50 block mb-2">
+                            Sources ({meta.citations.length})
+                          </span>
 
-                          <div className="space-y-3">
+                          <div className="space-y-2">
                             {meta.citations.map((cite, i) => {
                               const citeKey = `${msg.id}-${i}`;
                               const isCopied = copiedKey === citeKey;
@@ -612,32 +370,22 @@ function ChatContent() {
                                 cite.content || ""
                               );
                               const effectivePage = cite.page_number || pageNum || 1;
-                              const effectiveDoc = docName || (activeDoc?.filename ?? "Document");
+                              const effectiveDoc = docName || activeDoc?.filename;
 
                               return (
                                 <div
                                   key={i}
-                                  className="group relative rounded-xl border border-white/[0.08] bg-[#121316] p-4 text-xs transition-colors hover:border-white/20"
+                                  className="rounded-lg border border-white/[0.06] bg-[#14161A] p-3 text-xs"
                                 >
-                                  <div className="mb-2 flex items-center justify-between text-[11px] text-white/50">
-                                    <div className="flex items-center gap-2">
-                                      <span className="rounded bg-white/10 px-1.5 py-0.5 font-mono font-medium text-white">
-                                        Source [{i + 1}]
-                                      </span>
-                                      <span className="text-white/70 font-mono">
-                                        Page {effectivePage}
-                                      </span>
-                                      {effectiveDoc && (
-                                        <span className="text-white/40 truncate max-w-[220px]">
-                                          • {effectiveDoc}
-                                        </span>
-                                      )}
-                                    </div>
-
+                                  <div className="flex items-center justify-between text-[11px] text-white/50 mb-1.5">
+                                    <span className="text-white/80 font-mono">
+                                      Source [{i + 1}] • Page {effectivePage}
+                                      {effectiveDoc ? ` • ${effectiveDoc}` : ""}
+                                    </span>
                                     <button
                                       type="button"
                                       onClick={() => handleCopyCitation(cleanText, citeKey)}
-                                      className="flex items-center gap-1 text-[11px] text-white/50 hover:text-white transition-colors"
+                                      className="flex items-center gap-1 text-[11px] text-white/40 hover:text-white transition-colors"
                                     >
                                       {isCopied ? (
                                         <>
@@ -647,13 +395,12 @@ function ChatContent() {
                                       ) : (
                                         <>
                                           <Copy className="h-3 w-3" />
-                                          <span>Copy excerpt</span>
+                                          <span>Copy</span>
                                         </>
                                       )}
                                     </button>
                                   </div>
-
-                                  <p className="font-serif italic text-white/80 leading-relaxed border-l-2 border-emerald-500/40 pl-3">
+                                  <p className="font-serif italic text-white/70 leading-relaxed">
                                     &ldquo;{cleanText}&rdquo;
                                   </p>
                                 </div>
@@ -667,16 +414,11 @@ function ChatContent() {
                 );
               })}
 
-              {/* Loading Indicator */}
+              {/* Minimal Loading Indicator */}
               {loading && (
-                <div className="flex items-center gap-3 rounded-2xl border border-white/[0.08] bg-[#181A1F] p-4 text-xs text-white/70 animate-pulse max-w-md">
-                  <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-amber-400/10 text-amber-300">
-                    <Sparkles className="h-4 w-4 animate-spin" />
-                  </div>
-                  <div>
-                    <p className="font-medium text-white">Consulting vector index...</p>
-                    <p className="text-[11px] text-white/50">Cross-verifying passages & page citations</p>
-                  </div>
+                <div className="flex items-center gap-2 text-xs text-white/60 py-2">
+                  <Loader2 className="h-3.5 w-3.5 animate-spin text-white/70" />
+                  <span>Thinking...</span>
                 </div>
               )}
 
@@ -686,21 +428,20 @@ function ChatContent() {
         </div>
       </main>
 
-      {/* ─── Bottom Docked Input Bar ─── */}
-      <footer className="flex-shrink-0 border-t border-white/[0.08] bg-[#1A1C20]/95 px-4 sm:px-8 py-3.5 backdrop-blur-md">
-        <div className="mx-auto max-w-4xl">
-          {/* Active document pill above input when chatting */}
+      {/* ─── Minimal Docked Input Bar ─── */}
+      <footer className="flex-shrink-0 border-t border-white/[0.08] px-4 sm:px-6 py-3 bg-[#1A1C20]">
+        <div className="mx-auto max-w-3xl">
           {activeDoc && messages.length > 0 && (
-            <div className="mb-2 flex items-center justify-between text-xs text-white/50 px-1">
+            <div className="mb-2 flex items-center justify-between text-xs text-white/40 px-1">
               <span className="truncate">
-                Querying: <span className="text-white font-medium">{activeDoc.filename}</span>
+                Searching: <span className="text-white/70">{activeDoc.filename}</span>
               </span>
               <button
                 type="button"
                 onClick={() => setSelectedDocId(null)}
-                className="text-[11px] text-amber-300/80 hover:text-amber-200"
+                className="text-[11px] text-white/50 hover:text-white"
               >
-                Switch to entire workspace
+                Search all documents
               </button>
             </div>
           )}
@@ -717,27 +458,19 @@ function ChatContent() {
               type="text"
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              placeholder={
-                activeDoc
-                  ? `Ask anything about ${activeDoc.filename}...`
-                  : "Ask anything about your paperwork, agreements, or records..."
-              }
+              placeholder="Ask a question..."
               disabled={loading}
-              className="w-full rounded-2xl border border-white/15 bg-[#22252A] py-3.5 pl-5 pr-14 text-sm text-white placeholder-white/35 outline-none transition-all focus:border-white/35 focus:bg-[#282C34] disabled:opacity-50"
+              className="w-full rounded-xl border border-white/10 bg-[#22252A] py-3 pl-4 pr-12 text-sm text-white placeholder-white/40 outline-none focus:border-white/25 focus:bg-[#262A30] transition-colors"
             />
             <button
               type="submit"
               disabled={!input.trim() || loading}
-              aria-label="Send inquiry"
-              className="absolute right-2 flex h-9 w-9 items-center justify-center rounded-xl bg-white text-[#1A1C20] transition-all hover:bg-neutral-200 disabled:opacity-20 disabled:hover:bg-white"
+              aria-label="Send"
+              className="absolute right-2 flex h-8 w-8 items-center justify-center rounded-lg bg-white text-[#1A1C20] transition-colors hover:bg-neutral-200 disabled:opacity-20 disabled:hover:bg-white"
             >
-              <Send className="h-4 w-4" />
+              <Send className="h-3.5 w-3.5" />
             </button>
           </form>
-
-          <p className="mt-2 text-center text-[11px] text-white/35 font-mono">
-            Answers are grounded directly in your uploaded paperwork • Citations reference verified pages
-          </p>
         </div>
       </footer>
     </div>
@@ -748,11 +481,8 @@ export default function ChatPage() {
   return (
     <Suspense
       fallback={
-        <div className="flex min-h-[calc(100vh-4rem)] w-full items-center justify-center bg-[#1A1C20] text-white/60">
-          <div className="flex items-center gap-3">
-            <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
-            <span className="font-mono text-xs">Loading Document Inquirer...</span>
-          </div>
+        <div className="flex min-h-[calc(100vh-4rem)] w-full items-center justify-center bg-[#1A1C20] text-white/50 text-xs">
+          Loading...
         </div>
       }
     >
