@@ -6,7 +6,7 @@ import { useEffect, useRef, useState, useMemo, Suspense } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import {
-  Send,
+  ArrowUp,
   RotateCcw,
   Copy,
   Check,
@@ -672,14 +672,14 @@ function ChatContent() {
               onChange={(e) => setInput(e.target.value)}
               placeholder={isStreaming ? "Responding..." : "Ask a question..."}
               disabled={isStreaming}
-              className="w-full rounded-xl border border-white/10 bg-[#22252A] py-3 pl-4 pr-12 text-sm text-white placeholder-white/40 outline-none focus:border-white/25 focus:bg-[#262A30] transition-colors disabled:opacity-70"
+              className="w-full rounded-2xl border border-white/10 bg-[#22252A] py-3 pl-4.5 pr-12 text-sm text-white placeholder-white/40 outline-none focus:border-white/25 focus:bg-[#262A30] transition-colors disabled:opacity-70"
             />
             {isStreaming ? (
               <button
                 type="button"
                 onClick={stopStreaming}
                 title="Stop response"
-                className="absolute right-2 flex h-8 w-8 items-center justify-center rounded-lg bg-white/15 text-white transition-colors hover:bg-white/25"
+                className="absolute right-2 flex h-8 w-8 items-center justify-center rounded-full bg-white/15 text-white transition-all hover:bg-white/25 active:scale-95"
               >
                 <Square className="h-3 w-3 fill-current" />
               </button>
@@ -687,10 +687,14 @@ function ChatContent() {
               <button
                 type="submit"
                 disabled={!input.trim()}
-                aria-label="Send"
-                className="absolute right-2 flex h-8 w-8 items-center justify-center rounded-lg bg-white text-[#1A1C20] transition-colors hover:bg-neutral-200 disabled:opacity-20 disabled:hover:bg-white"
+                aria-label="Send message"
+                className={`absolute right-2 flex h-8 w-8 items-center justify-center rounded-full transition-all duration-200 ${
+                  input.trim()
+                    ? "bg-[#B066FF] text-white shadow-[0_0_12px_rgba(176,102,255,0.5)] hover:bg-[#B877FF] hover:scale-105 active:scale-95 cursor-pointer"
+                    : "bg-white/[0.06] text-white/30 border border-white/[0.08] cursor-not-allowed"
+                }`}
               >
-                <Send className="h-3.5 w-3.5" />
+                <ArrowUp className="h-4 w-4" strokeWidth={2.5} />
               </button>
             )}
           </form>
