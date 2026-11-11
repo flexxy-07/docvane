@@ -679,22 +679,18 @@ function ChatContent() {
                 type="button"
                 onClick={stopStreaming}
                 title="Stop response"
-                className="absolute right-2 flex h-8 w-8 items-center justify-center rounded-full bg-white/15 text-white transition-all hover:bg-white/25 active:scale-95"
+                className="absolute right-2 flex h-8 w-8 items-center justify-center rounded-full bg-[#B066FF] text-white transition-all hover:bg-[#B877FF] active:scale-95 shadow-[0_0_10px_rgba(176,102,255,0.4)]"
               >
-                <Square className="h-3 w-3 fill-current" />
+                <Square className="h-3 w-3 fill-current text-white" />
               </button>
             ) : (
               <button
                 type="submit"
                 disabled={!input.trim()}
                 aria-label="Send message"
-                className={`absolute right-2 flex h-8 w-8 items-center justify-center rounded-full transition-all duration-200 ${
-                  input.trim()
-                    ? "bg-[#B066FF] text-white shadow-[0_0_12px_rgba(176,102,255,0.5)] hover:bg-[#B877FF] hover:scale-105 active:scale-95 cursor-pointer"
-                    : "bg-white/[0.06] text-white/30 border border-white/[0.08] cursor-not-allowed"
-                }`}
+                className="absolute right-2 flex h-8 w-8 items-center justify-center rounded-full bg-[#B066FF] text-white shadow-[0_0_10px_rgba(176,102,255,0.4)] transition-all duration-200 hover:bg-[#B877FF] hover:scale-105 active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:scale-100 disabled:hover:bg-[#B066FF]"
               >
-                <ArrowUp className="h-4 w-4" strokeWidth={2.5} />
+                <ArrowUp className="h-4 w-4 text-white" strokeWidth={2.5} />
               </button>
             )}
           </form>
