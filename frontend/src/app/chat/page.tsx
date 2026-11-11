@@ -12,7 +12,8 @@ import {
   Check,
   FileText,
   X,
-  Loader2,
+  Square,
+  Sparkles,
 } from "lucide-react";
 import {
   ChatResponse,
@@ -25,6 +26,7 @@ interface Message {
   id: string;
   sender: "user" | "assistant";
   text: string;
+  isStreaming?: boolean;
   responseMeta?: ChatResponse;
 }
 
@@ -56,50 +58,63 @@ function cleanCitationExcerpt(rawContent: string): {
 }
 
 /* ─────────────────────────────────────────────
-   renderFormattedContent: Clean, natural typography
+   renderFormattedContent: Clean typography + streaming cursor
 ───────────────────────────────────────────── */
-function renderFormattedContent(text: string) {
+function renderFormattedContent(text: string, isStreaming?: boolean) {
   const lines = text.split("\n");
+  const lastLineIdx = lines.length - 1;
+
   return (
     <div className="space-y-2 text-sm sm:text-[15px] leading-relaxed text-[#E2E4E9]">
       {lines.map((line, idx) => {
+        const isLastLine = idx === lastLineIdx;
         const trimmed = line.trim();
-        if (!trimmed) {
+        if (!trimmed && !isLastLine) {
           return <div key={idx} className="h-1" />;
         }
 
-        const parseLine = (str: string) => {
+        const parseLine = (str: string, showCursor: boolean) => {
           const parts = str.split(/(\*\*.*?\*\*|`.*?`|\[Source\s+\d+\]|\[Page\s+\d+\])/g);
-          return parts.map((part, pIdx) => {
-            if (part.startsWith("**") && part.endsWith("**")) {
-              return (
-                <strong key={pIdx} className="font-semibold text-white">
-                  {part.slice(2, -2)}
-                </strong>
-              );
-            }
-            if (part.startsWith("`") && part.endsWith("`")) {
-              return (
-                <code
-                  key={pIdx}
-                  className="font-mono text-xs bg-white/10 px-1.5 py-0.5 rounded text-amber-200"
-                >
-                  {part.slice(1, -1)}
-                </code>
-              );
-            }
-            if (part.startsWith("[Source") || part.startsWith("[Page")) {
-              return (
+          return (
+            <>
+              {parts.map((part, pIdx) => {
+                if (part.startsWith("**") && part.endsWith("**")) {
+                  return (
+                    <strong key={pIdx} className="font-semibold text-white">
+                      {part.slice(2, -2)}
+                    </strong>
+                  );
+                }
+                if (part.startsWith("`") && part.endsWith("`")) {
+                  return (
+                    <code
+                      key={pIdx}
+                      className="font-mono text-xs bg-white/10 px-1.5 py-0.5 rounded text-amber-200"
+                    >
+                      {part.slice(1, -1)}
+                    </code>
+                  );
+                }
+                if (part.startsWith("[Source") || part.startsWith("[Page")) {
+                  return (
+                    <span
+                      key={pIdx}
+                      className="inline-flex items-center mx-1 rounded px-1.5 py-0.2 text-[11px] font-mono text-emerald-300 bg-emerald-500/10 border border-emerald-500/20"
+                    >
+                      {part}
+                    </span>
+                  );
+                }
+                return part;
+              })}
+              {showCursor && (
                 <span
-                  key={pIdx}
-                  className="inline-flex items-center mx-1 rounded px-1.5 py-0.2 text-[11px] font-mono text-emerald-300 bg-emerald-500/10 border border-emerald-500/20"
-                >
-                  {part}
-                </span>
-              );
-            }
-            return part;
-          });
+                  className="inline-block w-1.5 h-3.5 ml-1 bg-amber-400 rounded-sm animate-pulse align-middle"
+                  aria-hidden="true"
+                />
+              )}
+            </>
+          );
         };
 
         const numMatch = trimmed.match(/^(\d+[\.\)])\s+(.*)/);
@@ -109,7 +124,7 @@ function renderFormattedContent(text: string) {
               <span className="text-white/40 font-mono text-xs mt-0.5 select-none">
                 {numMatch[1]}
               </span>
-              <div className="flex-1">{parseLine(numMatch[2])}</div>
+              <div className="flex-1">{parseLine(numMatch[2], Boolean(isStreaming && isLastLine))}</div>
             </div>
           );
         }
@@ -119,7 +134,7 @@ function renderFormattedContent(text: string) {
           return (
             <div key={idx} className="flex items-start gap-2 pl-2 py-0.5">
               <span className="text-emerald-400 text-sm mt-0.5 select-none leading-none">•</span>
-              <div className="flex-1">{parseLine(content)}</div>
+              <div className="flex-1">{parseLine(content, Boolean(isStreaming && isLastLine))}</div>
             </div>
           );
         }
@@ -128,12 +143,12 @@ function renderFormattedContent(text: string) {
           const title = trimmed.replace(/^#+\s*/, "");
           return (
             <h4 key={idx} className="font-medium text-white text-base mt-2 mb-1">
-              {parseLine(title)}
+              {parseLine(title, Boolean(isStreaming && isLastLine))}
             </h4>
           );
         }
 
-        return <p key={idx}>{parseLine(trimmed)}</p>;
+        return <p key={idx}>{parseLine(trimmed, Boolean(isStreaming && isLastLine))}</p>;
       })}
     </div>
   );
@@ -148,9 +163,16 @@ function ChatContent() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
+  const [loadingPhase, setLoadingPhase] = useState(0);
+  const [isStreaming, setIsStreaming] = useState(false);
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
+
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
+  const streamTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const currentStreamingMsgIdRef = useRef<string | null>(null);
+  const fullStreamingTextRef = useRef<string>("");
+  const lastScrollTime = useRef<number>(0);
 
   useEffect(() => {
     fetchDocuments().then((docs) => {
@@ -161,22 +183,151 @@ function ChatContent() {
     });
   }, [initialDocId]);
 
+  // Clean up streaming on unmount
+  useEffect(() => {
+    return () => {
+      if (streamTimeoutRef.current) clearTimeout(streamTimeoutRef.current);
+    };
+  }, []);
+
+  // Multi-stage loading feedback during retrieval
+  useEffect(() => {
+    if (!loading) {
+      setLoadingPhase(0);
+      return;
+    }
+    const t1 = setTimeout(() => setLoadingPhase(1), 700);
+    const t2 = setTimeout(() => setLoadingPhase(2), 1400);
+    return () => {
+      clearTimeout(t1);
+      clearTimeout(t2);
+    };
+  }, [loading]);
+
   const activeDoc = useMemo(() => {
     if (!selectedDocId) return null;
     return documents.find((d) => d.id === selectedDocId) || null;
   }, [documents, selectedDocId]);
 
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  const scrollToBottom = (force = false) => {
+    const now = performance.now();
+    if (force || now - lastScrollTime.current > 75) {
+      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+      lastScrollTime.current = now;
+    }
   };
 
   useEffect(() => {
     scrollToBottom();
   }, [messages, loading]);
 
+  const stopStreaming = () => {
+    if (streamTimeoutRef.current) {
+      clearTimeout(streamTimeoutRef.current);
+      streamTimeoutRef.current = null;
+    }
+    const msgId = currentStreamingMsgIdRef.current;
+    const fullText = fullStreamingTextRef.current;
+    if (msgId && fullText) {
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.id === msgId ? { ...m, text: fullText, isStreaming: false } : m
+        )
+      );
+    }
+    currentStreamingMsgIdRef.current = null;
+    fullStreamingTextRef.current = "";
+    setIsStreaming(false);
+    scrollToBottom(true);
+  };
+
+  const startStreamingResponse = (assistantMsgId: string, fullText: string, meta: ChatResponse) => {
+    // If empty text returned, complete immediately
+    if (!fullText) {
+      setMessages((prev) => [
+        ...prev,
+        { id: assistantMsgId, sender: "assistant", text: "", isStreaming: false, responseMeta: meta },
+      ]);
+      return;
+    }
+
+    currentStreamingMsgIdRef.current = assistantMsgId;
+    fullStreamingTextRef.current = fullText;
+    setIsStreaming(true);
+
+    // Initial empty assistant message
+    setMessages((prev) => [
+      ...prev,
+      {
+        id: assistantMsgId,
+        sender: "assistant",
+        text: "",
+        isStreaming: true,
+        responseMeta: meta,
+      },
+    ]);
+
+    // Split text into word and whitespace chunks
+    const tokens = fullText.match(/\S+|\s+/g) || [fullText];
+    let currentIndex = 0;
+    let accumulated = "";
+
+    const streamNextToken = () => {
+      if (currentIndex >= tokens.length) {
+        // Streaming finished
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.id === assistantMsgId
+              ? { ...m, text: fullText, isStreaming: false }
+              : m
+          )
+        );
+        currentStreamingMsgIdRef.current = null;
+        fullStreamingTextRef.current = "";
+        setIsStreaming(false);
+        scrollToBottom(true);
+        return;
+      }
+
+      const token = tokens[currentIndex];
+      accumulated += token;
+      currentIndex++;
+
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.id === assistantMsgId
+            ? { ...m, text: accumulated, isStreaming: true }
+            : m
+        )
+      );
+
+      scrollToBottom();
+
+      // Pacing: organic reading cadence
+      let delay = 18;
+      if (token.includes("\n")) delay = 50;
+      else if (token.endsWith(".") || token.endsWith("!") || token.endsWith("?")) delay = 40;
+      else if (token.endsWith(",") || token.endsWith(":") || token.endsWith(";")) delay = 28;
+
+      // Adapt speed for long answers
+      if (tokens.length > 120) {
+        delay = Math.max(10, Math.round(delay * 0.65));
+      }
+
+      streamTimeoutRef.current = setTimeout(streamNextToken, delay);
+    };
+
+    streamNextToken();
+  };
+
   const handleSend = async (questionText?: string) => {
     const q = (questionText || input).trim();
     if (!q || loading) return;
+
+    // If currently streaming, complete it first
+    if (isStreaming) {
+      stopStreaming();
+    }
 
     const userMsgId = "user-" + Date.now();
     const newMessages: Message[] = [
@@ -194,30 +345,26 @@ function ChatContent() {
           : q;
 
       const result = await submitChatQuestion(effectiveQuestion);
-      setMessages([
-        ...newMessages,
-        {
-          id: "assistant-" + Date.now(),
-          sender: "assistant",
-          text: result.answer,
-          responseMeta: result,
-        },
-      ]);
+      setLoading(false);
+
+      // Launch progressive streaming
+      const assistantMsgId = "assistant-" + Date.now();
+      startStreamingResponse(assistantMsgId, result.answer, result);
     } catch {
-      setMessages([
-        ...newMessages,
+      setLoading(false);
+      setMessages((prev) => [
+        ...prev,
         {
           id: "assistant-err-" + Date.now(),
           sender: "assistant",
           text: "Sorry, I could not retrieve an answer right now. Please try again.",
         },
       ]);
-    } finally {
-      setLoading(false);
     }
   };
 
   const handleReset = () => {
+    if (isStreaming) stopStreaming();
     setMessages([]);
     setInput("");
     inputRef.current?.focus();
@@ -229,7 +376,6 @@ function ChatContent() {
     setTimeout(() => setCopiedKey(null), 2000);
   };
 
-  // Simple, clean suggestions
   const suggestedQueries = useMemo<string[]>(() => {
     const name = (activeDoc?.filename || "").toLowerCase();
     if (name.includes("srs") || name.includes("specification") || name.includes("smart document")) {
@@ -260,6 +406,12 @@ function ChatContent() {
       "What are the important dates or deadlines?",
     ];
   }, [activeDoc]);
+
+  const loadingMessages = [
+    "Consulting workspace documents...",
+    "Analyzing document passages...",
+    "Drafting verified response...",
+  ];
 
   return (
     <div className="flex flex-col h-[calc(100vh-4rem)] w-full bg-[#1A1C20] text-[#E2E4E9]">
@@ -352,14 +504,14 @@ function ChatContent() {
                 return (
                   <div key={msg.id} className="flex justify-start">
                     <div className="w-full rounded-2xl border border-white/[0.08] bg-[#1B1D22] p-5 text-[#E2E4E9] shadow-sm">
-                      {/* Answer */}
-                      <div>{renderFormattedContent(msg.text)}</div>
+                      {/* Answer with progressive streaming cursor */}
+                      <div>{renderFormattedContent(msg.text, msg.isStreaming)}</div>
 
-                      {/* Sources (clean, minimal) */}
-                      {meta?.citations && meta.citations.length > 0 && (
-                        <div className="mt-4 border-t border-white/[0.08] pt-3">
-                          <span className="text-xs font-medium text-white/50 block mb-2">
-                            Sources ({meta.citations.length})
+                      {/* Sources (gracefully reveals once streaming completes) */}
+                      {!msg.isStreaming && meta?.citations && meta.citations.length > 0 && (
+                        <div className="mt-5 border-t border-white/[0.08] pt-3.5 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                          <span className="text-xs font-mono text-white/40 block mb-2.5">
+                            SOURCES ({meta.citations.length})
                           </span>
 
                           <div className="space-y-2">
@@ -400,7 +552,7 @@ function ChatContent() {
                                       )}
                                     </button>
                                   </div>
-                                  <p className="font-serif italic text-white/70 leading-relaxed">
+                                  <p className="font-serif italic text-white/70 leading-relaxed border-l-2 border-emerald-500/30 pl-2.5">
                                     &ldquo;{cleanText}&rdquo;
                                   </p>
                                 </div>
@@ -414,11 +566,15 @@ function ChatContent() {
                 );
               })}
 
-              {/* Minimal Loading Indicator */}
+              {/* Multi-Phase Loading Feedback */}
               {loading && (
-                <div className="flex items-center gap-2 text-xs text-white/60 py-2">
-                  <Loader2 className="h-3.5 w-3.5 animate-spin text-white/70" />
-                  <span>Thinking...</span>
+                <div className="flex items-center gap-2.5 text-xs text-white/60 py-2">
+                  <div className="flex h-5 w-5 items-center justify-center rounded-md bg-amber-400/10 text-amber-300">
+                    <Sparkles className="h-3.5 w-3.5 animate-spin" />
+                  </div>
+                  <span className="font-mono text-white/70">
+                    {loadingMessages[loadingPhase]}
+                  </span>
                 </div>
               )}
 
@@ -458,18 +614,29 @@ function ChatContent() {
               type="text"
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              placeholder="Ask a question..."
+              placeholder={isStreaming ? "Generating answer..." : "Ask a question..."}
               disabled={loading}
               className="w-full rounded-xl border border-white/10 bg-[#22252A] py-3 pl-4 pr-12 text-sm text-white placeholder-white/40 outline-none focus:border-white/25 focus:bg-[#262A30] transition-colors"
             />
-            <button
-              type="submit"
-              disabled={!input.trim() || loading}
-              aria-label="Send"
-              className="absolute right-2 flex h-8 w-8 items-center justify-center rounded-lg bg-white text-[#1A1C20] transition-colors hover:bg-neutral-200 disabled:opacity-20 disabled:hover:bg-white"
-            >
-              <Send className="h-3.5 w-3.5" />
-            </button>
+            {isStreaming ? (
+              <button
+                type="button"
+                onClick={stopStreaming}
+                title="Stop streaming"
+                className="absolute right-2 flex h-8 w-8 items-center justify-center rounded-lg bg-white/15 text-white transition-colors hover:bg-white/25"
+              >
+                <Square className="h-3 w-3 fill-current" />
+              </button>
+            ) : (
+              <button
+                type="submit"
+                disabled={!input.trim() || loading}
+                aria-label="Send"
+                className="absolute right-2 flex h-8 w-8 items-center justify-center rounded-lg bg-white text-[#1A1C20] transition-colors hover:bg-neutral-200 disabled:opacity-20 disabled:hover:bg-white"
+              >
+                <Send className="h-3.5 w-3.5" />
+              </button>
+            )}
           </form>
         </div>
       </footer>
