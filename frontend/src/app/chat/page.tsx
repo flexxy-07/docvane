@@ -163,7 +163,6 @@ function ChatContent() {
   const [selectedDocId, setSelectedDocId] = useState<string | null>(initialDocId);
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
-  const [loading, setLoading] = useState(false);
   const [isStreaming, setIsStreaming] = useState(false);
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
 
@@ -171,6 +170,13 @@ function ChatContent() {
   const inputRef = useRef<HTMLInputElement | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
   const lastScrollTime = useRef<number>(0);
+
+  // Smooth Token Buffer Engine (Claude / ChatGPT style interpolated stream)
+  const streamTargetTextRef = useRef<string>("");
+  const streamCurrentTextRef = useRef<string>("");
+  const isNetworkDoneRef = useRef<boolean>(false);
+  const animFrameIdRef = useRef<number | null>(null);
+  const currentMsgIdRef = useRef<string | null>(null);
 
   useEffect(() => {
     fetchDocuments().then((docs) => {
@@ -187,6 +193,9 @@ function ChatContent() {
       if (abortControllerRef.current) {
         abortControllerRef.current.abort();
       }
+      if (animFrameIdRef.current) {
+        cancelAnimationFrame(animFrameIdRef.current);
+      }
     };
   }, []);
 
@@ -197,7 +206,7 @@ function ChatContent() {
 
   const scrollToBottom = (force = false) => {
     const now = performance.now();
-    if (force || now - lastScrollTime.current > 75) {
+    if (force || now - lastScrollTime.current > 60) {
       messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
       lastScrollTime.current = now;
     }
@@ -205,32 +214,110 @@ function ChatContent() {
 
   useEffect(() => {
     scrollToBottom();
-  }, [messages, loading]);
+  }, [messages]);
+
+  // Smooth 60fps Token Easing Loop
+  const startSmoothLoop = (msgId: string) => {
+    if (animFrameIdRef.current) return;
+
+    let lastTick = performance.now();
+
+    const tick = (now: number) => {
+      const elapsed = now - lastTick;
+
+      // Update every ~16ms frame
+      if (elapsed >= 15) {
+        lastTick = now;
+        const current = streamCurrentTextRef.current;
+        const target = streamTargetTextRef.current;
+
+        if (current.length < target.length) {
+          const remaining = target.length - current.length;
+
+          // Adaptive stepping: silky smooth character release with gentle spring catch-up
+          let step = 1;
+          if (remaining > 140) step = 6;
+          else if (remaining > 70) step = 4;
+          else if (remaining > 25) step = 2;
+          else step = 1;
+
+          const nextText = target.slice(0, current.length + step);
+          streamCurrentTextRef.current = nextText;
+
+          setMessages((prev) =>
+            prev.map((m) =>
+              m.id === msgId ? { ...m, text: nextText, isStreaming: true } : m
+            )
+          );
+
+          scrollToBottom();
+        } else if (isNetworkDoneRef.current) {
+          // Both network and buffer drain are fully complete!
+          setMessages((prev) =>
+            prev.map((m) =>
+              m.id === msgId ? { ...m, text: target, isStreaming: false } : m
+            )
+          );
+          setIsStreaming(false);
+          currentMsgIdRef.current = null;
+          animFrameIdRef.current = null;
+          scrollToBottom(true);
+          return;
+        }
+      }
+
+      animFrameIdRef.current = requestAnimationFrame(tick);
+    };
+
+    animFrameIdRef.current = requestAnimationFrame(tick);
+  };
 
   const stopStreaming = () => {
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
       abortControllerRef.current = null;
     }
+    if (animFrameIdRef.current) {
+      cancelAnimationFrame(animFrameIdRef.current);
+      animFrameIdRef.current = null;
+    }
+
+    const msgId = currentMsgIdRef.current;
+    const finalTarget = streamTargetTextRef.current;
+    if (msgId) {
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.id === msgId ? { ...m, text: finalTarget || m.text, isStreaming: false } : m
+        )
+      );
+    }
+
     setIsStreaming(false);
-    setLoading(false);
-    setMessages((prev) =>
-      prev.map((m) => (m.isStreaming ? { ...m, isStreaming: false } : m))
-    );
+    currentMsgIdRef.current = null;
     scrollToBottom(true);
   };
 
   const handleSend = async (questionText?: string) => {
     const q = (questionText || input).trim();
-    if (!q || loading || isStreaming) return;
+    if (!q || isStreaming) return;
 
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
     }
+    if (animFrameIdRef.current) {
+      cancelAnimationFrame(animFrameIdRef.current);
+      animFrameIdRef.current = null;
+    }
+
     abortControllerRef.current = new AbortController();
 
     const userMsgId = "user-" + Date.now();
     const assistantMsgId = "assistant-" + (Date.now() + 1);
+
+    currentMsgIdRef.current = assistantMsgId;
+    streamTargetTextRef.current = "";
+    streamCurrentTextRef.current = "";
+    isNetworkDoneRef.current = false;
 
     const initialMeta: ChatResponse = {
       question: q,
@@ -254,7 +341,6 @@ function ChatContent() {
       },
     ]);
     setInput("");
-    setLoading(true);
     setIsStreaming(true);
 
     try {
@@ -282,65 +368,34 @@ function ChatContent() {
             );
           },
           onToken: (token: string) => {
-            // First token received: turn off loading indicator immediately!
-            setLoading(false);
-            setMessages((prev) =>
-              prev.map((m) =>
-                m.id === assistantMsgId
-                  ? { ...m, text: m.text + token, isStreaming: true }
-                  : m
-              )
-            );
-            scrollToBottom();
+            // Append token to target buffer and start smooth easing loop
+            streamTargetTextRef.current += token;
+            startSmoothLoop(assistantMsgId);
           },
           onDone: () => {
-            setLoading(false);
-            setIsStreaming(false);
-            setMessages((prev) =>
-              prev.map((m) =>
-                m.id === assistantMsgId ? { ...m, isStreaming: false } : m
-              )
-            );
-            scrollToBottom(true);
+            isNetworkDoneRef.current = true;
+            // Let the RAF loop finish draining the buffer smoothly
+            startSmoothLoop(assistantMsgId);
           },
-          onError: (err: Error) => {
-            setLoading(false);
-            setIsStreaming(false);
-            setMessages((prev) =>
-              prev.map((m) =>
-                m.id === assistantMsgId
-                  ? {
-                      ...m,
-                      text:
-                        m.text ||
-                        "Sorry, I could not retrieve an answer right now. Please try again.",
-                      isStreaming: false,
-                    }
-                  : m
-              )
-            );
-            scrollToBottom(true);
+          onError: () => {
+            isNetworkDoneRef.current = true;
+            if (!streamTargetTextRef.current) {
+              streamTargetTextRef.current =
+                "Sorry, I could not retrieve an answer right now. Please try again.";
+            }
+            startSmoothLoop(assistantMsgId);
           },
         },
         DEFAULT_TENANT_ID,
         abortControllerRef.current.signal
       );
     } catch {
-      setLoading(false);
-      setIsStreaming(false);
-      setMessages((prev) =>
-        prev.map((m) =>
-          m.id === assistantMsgId
-            ? {
-                ...m,
-                text:
-                  m.text ||
-                  "Sorry, I could not retrieve an answer right now. Please try again.",
-                isStreaming: false,
-              }
-            : m
-        )
-      );
+      isNetworkDoneRef.current = true;
+      if (!streamTargetTextRef.current) {
+        streamTargetTextRef.current =
+          "Sorry, I could not retrieve an answer right now. Please try again.";
+      }
+      startSmoothLoop(assistantMsgId);
     }
   };
 
@@ -476,17 +531,18 @@ function ChatContent() {
                   );
                 }
 
-                // If assistant message is still awaiting the very first token
-                const isWaitingFirstToken = msg.isStreaming && !msg.text;
+                // If assistant message is still awaiting the very first token (Claude-style subtle breathing dots)
+                const isAwaitingFirstToken = msg.isStreaming && !msg.text;
 
                 return (
                   <div key={msg.id} className="flex justify-start">
                     <div className="w-full rounded-2xl border border-white/[0.08] bg-[#1B1D22] p-5 text-[#E2E4E9] shadow-sm">
-                      {/* Quiet first-token loading status (NO spinning yellow stars) */}
-                      {isWaitingFirstToken ? (
-                        <div className="flex items-center gap-2 text-xs text-white/50 py-1 font-mono">
-                          <span className="inline-block h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                          <span>Reading documents...</span>
+                      {isAwaitingFirstToken ? (
+                        /* Claude-style elegant rhythmic breathing dots */
+                        <div className="flex items-center gap-1.5 py-1.5 px-0.5">
+                          <span className="h-1.5 w-1.5 rounded-full bg-white/40 animate-pulse [animation-duration:1s]" />
+                          <span className="h-1.5 w-1.5 rounded-full bg-white/60 animate-pulse [animation-duration:1s] [animation-delay:200ms]" />
+                          <span className="h-1.5 w-1.5 rounded-full bg-white/40 animate-pulse [animation-duration:1s] [animation-delay:400ms]" />
                         </div>
                       ) : (
                         <div>{renderFormattedContent(msg.text, msg.isStreaming)}</div>
@@ -588,7 +644,7 @@ function ChatContent() {
               value={input}
               onChange={(e) => setInput(e.target.value)}
               placeholder={isStreaming ? "Responding..." : "Ask a question..."}
-              disabled={loading || isStreaming}
+              disabled={isStreaming}
               className="w-full rounded-xl border border-white/10 bg-[#22252A] py-3 pl-4 pr-12 text-sm text-white placeholder-white/40 outline-none focus:border-white/25 focus:bg-[#262A30] transition-colors disabled:opacity-70"
             />
             {isStreaming ? (
@@ -603,7 +659,7 @@ function ChatContent() {
             ) : (
               <button
                 type="submit"
-                disabled={!input.trim() || loading}
+                disabled={!input.trim()}
                 aria-label="Send"
                 className="absolute right-2 flex h-8 w-8 items-center justify-center rounded-lg bg-white text-[#1A1C20] transition-colors hover:bg-neutral-200 disabled:opacity-20 disabled:hover:bg-white"
               >
