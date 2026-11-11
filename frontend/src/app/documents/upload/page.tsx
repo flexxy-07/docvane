@@ -9,7 +9,6 @@ import {
   FileCheck,
   ArrowRight,
   Clock,
-  Sparkles,
   ArrowLeft,
   Check,
 } from "lucide-react";
@@ -63,7 +62,7 @@ export default function UploadPage() {
 
     setIsUploading(true);
     setUploadStatus("uploading");
-    setStatusMessage("Uploading and indexing document...");
+    setStatusMessage("Uploading and processing document...");
 
     try {
       const formData = new FormData();
@@ -104,7 +103,7 @@ export default function UploadPage() {
       setStatusMessage(
         data.is_duplicate
           ? "This document is already in your workspace."
-          : "Uploaded successfully! Processing and indexing document."
+          : "Uploaded successfully and ready for inquiry."
       );
     } catch (err: unknown) {
       console.error("Document upload failed:", err);
@@ -153,19 +152,19 @@ export default function UploadPage() {
             onDrop={handleDrop}
             className={`group relative flex cursor-pointer flex-col items-center justify-center rounded-3xl border-2 border-dashed px-8 py-16 text-center transition-all ${
               isDragging
-                ? "border-[#E68A36] bg-[#0E242B]/90 scale-[1.01]"
-                : "border-white/10 bg-[#0E242B]/50 hover:border-white/30 hover:bg-[#0E242B]/80"
+                ? "border-amber-400 bg-[#262A32] scale-[1.01]"
+                : "border-white/15 bg-[#22252A] hover:border-white/30 hover:bg-[#252830]"
             }`}
           >
             <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-white/5 text-white transition-transform group-hover:scale-105">
-              <UploadCloud className={`h-8 w-8 ${isDragging ? "text-[#E68A36]" : "text-white"}`} />
+              <UploadCloud className={`h-8 w-8 ${isDragging ? "text-amber-400" : "text-white"}`} />
             </div>
 
             <h3 className="mt-6 font-serif text-xl font-normal text-white">
               {file ? file.name : "Choose or drag paperwork here"}
             </h3>
 
-            <p className="mt-2 max-w-sm text-xs text-white/50 leading-relaxed">
+            <p className="mt-2 max-w-sm text-xs text-white/50 leading-relaxed font-mono">
               {file
                 ? `${(file.size / (1024 * 1024)).toFixed(2)} MB • Ready to deposit`
                 : "PDF, PNG, or JPEG documents up to 25MB."}
@@ -180,7 +179,7 @@ export default function UploadPage() {
             />
 
             {!file && (
-              <span className="mt-6 inline-block rounded-full bg-white px-5 py-2 text-xs font-medium text-[#1A1C20] transition-colors hover:bg-neutral-200">
+              <span className="mt-6 inline-block rounded-full bg-white px-5 py-2 text-xs font-semibold text-[#1A1C20] transition-colors hover:bg-neutral-200">
                 Browse Files
               </span>
             )}
@@ -188,8 +187,8 @@ export default function UploadPage() {
 
           {/* Document Type Selector */}
           {file && (
-            <div className="mt-6 rounded-2xl border border-white/10 bg-[#0E242B]/60 p-5">
-              <span className="block text-xs text-white/60 uppercase tracking-wider mb-3">
+            <div className="mt-6 rounded-2xl border border-white/10 bg-[#22252A] p-5">
+              <span className="block text-xs font-mono uppercase tracking-wider text-white/50 mb-3">
                 Classify Document
               </span>
               <div className="flex flex-wrap gap-2">
@@ -198,7 +197,7 @@ export default function UploadPage() {
                     key={dt.id}
                     type="button"
                     onClick={() => setDocType(dt.id)}
-                    className={`flex items-center gap-1.5 rounded-full px-4 py-1.5 text-xs transition-all ${
+                    className={`flex items-center gap-1.5 rounded-full px-4 py-1.5 text-xs transition-colors ${
                       docType === dt.id
                         ? "bg-white text-[#1A1C20] font-medium"
                         : "border border-white/10 bg-white/5 text-white/70 hover:bg-white/10"
@@ -214,12 +213,12 @@ export default function UploadPage() {
 
           {/* Upload Action Bar */}
           {file && (
-            <div className="mt-6 flex flex-col sm:flex-row items-center justify-between gap-4 rounded-2xl border border-white/10 bg-[#0E242B] p-5">
+            <div className="mt-6 flex flex-col sm:flex-row items-center justify-between gap-4 rounded-2xl border border-white/10 bg-[#22252A] p-5">
               <div className="flex items-center gap-3">
                 <FileCheck className="h-5 w-5 text-emerald-400" />
                 <div>
                   <p className="text-sm font-medium text-white">{file.name}</p>
-                  <p className="text-xs text-white/50">
+                  <p className="text-xs font-mono text-white/50">
                     {(file.size / 1024).toFixed(0)} KB • {docTypes.find((t) => t.id === docType)?.label}
                   </p>
                 </div>
@@ -239,7 +238,7 @@ export default function UploadPage() {
                 <button
                   onClick={handleUpload}
                   disabled={isUploading}
-                  className="flex-1 sm:flex-initial flex items-center justify-center gap-2 rounded-full bg-white px-6 py-2.5 text-xs font-medium text-[#1A1C20] transition-all hover:bg-neutral-200 disabled:opacity-50"
+                  className="flex-1 sm:flex-initial flex items-center justify-center gap-2 rounded-full bg-white px-6 py-2.5 text-xs font-semibold text-[#1A1C20] transition-colors hover:bg-neutral-200 disabled:opacity-50"
                 >
                   {isUploading ? (
                     <>
@@ -248,7 +247,7 @@ export default function UploadPage() {
                     </>
                   ) : (
                     <>
-                      <span>Add to Workspace</span>
+                      <span>Deposit Document</span>
                       <ArrowRight className="h-3.5 w-3.5" />
                     </>
                   )}
@@ -259,9 +258,8 @@ export default function UploadPage() {
 
           {/* Status Notification */}
           {uploadStatus === "success" && (
-            <div className="mt-6 rounded-2xl border border-emerald-500/30 bg-emerald-950/40 p-6 text-sm text-emerald-300">
+            <div className="mt-6 rounded-2xl border border-emerald-500/25 bg-emerald-950/20 p-6 text-sm text-emerald-300">
               <div className="flex items-center gap-2 font-serif text-base">
-                <Sparkles className="h-4 w-4" />
                 <span>Upload Complete</span>
               </div>
               <p className="mt-2 text-xs text-white/80">{statusMessage}</p>
@@ -274,10 +272,10 @@ export default function UploadPage() {
                   Return to Library →
                 </Link>
                 <Link
-                  href="/chat"
+                  href={uploadedDocId ? `/chat?docId=${uploadedDocId}` : "/chat"}
                   className="text-xs font-medium text-white/80 hover:underline"
                 >
-                  Ask a question →
+                  Inquire this document →
                 </Link>
               </div>
             </div>

@@ -7,8 +7,6 @@ import Link from "next/link";
 import {
   FileText,
   Search,
-  CheckCircle2,
-  AlertCircle,
   Clock,
   ArrowUpRight,
 } from "lucide-react";
@@ -51,13 +49,13 @@ export default function DocumentsPage() {
     switch (status) {
       case "ready":
         return (
-          <span className="rounded-full bg-emerald-950/70 border border-emerald-500/30 px-2.5 py-0.5 text-[11px] text-emerald-400">
+          <span className="rounded-full bg-emerald-500/10 border border-emerald-500/25 px-2.5 py-0.5 text-[11px] font-mono text-emerald-300">
             Verified ✓
           </span>
         );
       case "needs_review":
         return (
-          <span className="rounded-full bg-amber-950/70 border border-amber-500/30 px-2.5 py-0.5 text-[11px] text-amber-400">
+          <span className="rounded-full bg-amber-500/10 border border-amber-500/25 px-2.5 py-0.5 text-[11px] font-mono text-amber-300">
             Review needed
           </span>
         );
@@ -65,14 +63,14 @@ export default function DocumentsPage() {
       case "extracting":
       case "indexing":
         return (
-          <span className="rounded-full bg-blue-950/70 border border-blue-500/30 px-2.5 py-0.5 text-[11px] text-blue-300 flex items-center gap-1">
-            <Clock className="h-2.5 w-2.5 animate-spin" />
-            <span>Reading...</span>
+          <span className="rounded-full bg-blue-500/10 border border-blue-500/25 px-2.5 py-0.5 text-[11px] font-mono text-blue-300 flex items-center gap-1.5">
+            <Clock className="h-3 w-3 animate-spin" />
+            <span>Processing...</span>
           </span>
         );
       default:
         return (
-          <span className="rounded-full bg-zinc-800 px-2.5 py-0.5 text-[11px] text-zinc-400 capitalize">
+          <span className="rounded-full bg-white/5 border border-white/10 px-2.5 py-0.5 text-[11px] font-mono text-white/50 capitalize">
             {status}
           </span>
         );
@@ -95,7 +93,7 @@ export default function DocumentsPage() {
 
           <Link
             href="/documents/upload"
-            className="inline-flex items-center gap-2 rounded-full bg-white px-5 py-2 text-xs font-medium text-[#1A1C20] transition-all hover:bg-[#F3F4F6]"
+            className="inline-flex items-center gap-2 rounded-full bg-white px-5 py-2 text-xs font-semibold text-[#1A1C20] transition-colors hover:bg-neutral-200"
           >
             <span>+ Deposit Document</span>
           </Link>
@@ -111,7 +109,7 @@ export default function DocumentsPage() {
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="Search paperwork by title or type..."
-                className="w-full rounded-full border border-white/10 bg-white/5 py-2.5 pl-10 pr-4 text-sm text-white placeholder-white/40 outline-none focus:border-white/30"
+                className="w-full rounded-full border border-white/10 bg-[#22252A] py-2.5 pl-10 pr-4 text-sm text-white placeholder-white/40 outline-none focus:border-white/25 focus:bg-[#262A30] transition-colors"
               />
             </div>
 
@@ -125,7 +123,7 @@ export default function DocumentsPage() {
                 <button
                   key={filter.id}
                   onClick={() => setStatusFilter(filter.id)}
-                  className={`rounded-full px-4 py-1.5 text-xs transition-all ${
+                  className={`rounded-full px-3.5 py-1.5 text-xs transition-colors ${
                     statusFilter === filter.id
                       ? "bg-white text-[#1A1C20] font-medium"
                       : "border border-white/10 bg-white/5 text-white/70 hover:bg-white/10"
@@ -145,13 +143,14 @@ export default function DocumentsPage() {
               { id: "contract", label: "Contracts & MSAs" },
               { id: "invoice", label: "Invoices" },
               { id: "manifest", label: "Manifests" },
+              { id: "general", label: "General" },
             ].map((cat) => (
               <button
                 key={cat.id}
                 onClick={() => setCategoryFilter(cat.id)}
-                className={`rounded-full px-3 py-1 text-xs transition-all ${
+                className={`rounded-full px-3 py-1 text-xs transition-colors ${
                   categoryFilter === cat.id
-                    ? "bg-[#E68A36] text-white font-medium"
+                    ? "bg-white text-[#1A1C20] font-medium"
                     : "text-white/60 hover:text-white hover:bg-white/5"
                 }`}
               >
@@ -159,16 +158,16 @@ export default function DocumentsPage() {
               </button>
             ))}
 
-            <span className="ml-auto text-xs text-white/40">
+            <span className="ml-auto text-xs font-mono text-white/40">
               Showing {filteredDocs.length} of {documents.length}
             </span>
           </div>
         </div>
 
-        {/* Documents Grid (Matching Ellipsus Card Showcase) */}
+        {/* Documents Grid */}
         <div className="mt-8 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
           {loading ? (
-            <div className="col-span-full py-16 text-center text-sm text-[#A0A5AD]">
+            <div className="col-span-full py-16 text-center text-xs text-white/40">
               Loading workspace documents...
             </div>
           ) : filteredDocs.length === 0 ? (
@@ -183,7 +182,7 @@ export default function DocumentsPage() {
             filteredDocs.map((doc) => (
               <div
                 key={doc.id}
-                className="group relative flex flex-col justify-between rounded-2xl border border-white/10 bg-[#0E242B]/80 p-6 transition-all hover:border-white/20 hover:bg-[#122B33]"
+                className="group relative flex flex-col justify-between rounded-2xl border border-white/10 bg-[#22252A] p-6 transition-all hover:border-white/25 hover:bg-[#262A30]"
               >
                 <div>
                   <div className="flex items-start justify-between gap-3">
@@ -193,11 +192,11 @@ export default function DocumentsPage() {
                     {getStatusBadge(doc.status)}
                   </div>
 
-                  <h3 className="mt-4 font-serif text-lg font-normal text-white group-hover:text-[#E68A36] transition-colors line-clamp-2">
+                  <h3 className="mt-4 font-serif text-lg font-normal text-white group-hover:text-amber-100 transition-colors line-clamp-2">
                     {doc.filename}
                   </h3>
 
-                  <div className="mt-3 flex items-center gap-3 text-xs text-white/50">
+                  <div className="mt-3 flex items-center gap-2 text-xs font-mono text-white/50">
                     <span>{doc.page_count} pages</span>
                     <span>•</span>
                     <span>{(doc.file_size_bytes / 1024).toFixed(0)} KB</span>
@@ -205,7 +204,7 @@ export default function DocumentsPage() {
                 </div>
 
                 <div className="mt-8 flex items-center justify-between border-t border-white/5 pt-4">
-                  <span className="text-xs text-white/40">
+                  <span className="text-xs font-mono text-white/40">
                     {new Date(doc.created_at).toLocaleDateString(undefined, {
                       month: "short",
                       day: "numeric",
@@ -218,7 +217,7 @@ export default function DocumentsPage() {
                         ? `/reviews?docId=${doc.id}`
                         : `/chat?docId=${doc.id}`
                     }
-                    className="flex items-center gap-1 text-xs font-medium text-white/80 hover:text-white transition-colors"
+                    className="flex items-center gap-1 text-xs font-medium text-white/80 group-hover:text-white transition-colors"
                   >
                     <span>{doc.status === "needs_review" ? "Review" : "Inquire"}</span>
                     <ArrowUpRight className="h-3 w-3" />
