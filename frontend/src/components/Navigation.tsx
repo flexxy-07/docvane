@@ -101,8 +101,8 @@ export function Navigation() {
                 <span
                   className={`rounded-full px-1.5 py-0.5 text-[10px] font-medium ${
                     isChat
-                      ? "bg-amber-500/15 border border-amber-500/30 text-amber-300"
-                      : "bg-[#FEF3C7] text-[#D97706]"
+                      ? "bg-[#B066FF]/15 border border-[#B066FF]/30 text-[#C48CFF]"
+                      : "bg-[#F3E8FF] text-[#8C3BE8]"
                   }`}
                 >
                   {pendingCount}
@@ -205,8 +205,8 @@ export function Navigation() {
               <span
                 className={`rounded-full px-2 py-0.5 text-xs font-medium ${
                   isChat
-                    ? "bg-amber-500/15 border border-amber-500/30 text-amber-300"
-                    : "bg-[#FEF3C7] text-[#D97706]"
+                    ? "bg-[#B066FF]/15 border border-[#B066FF]/30 text-[#C48CFF]"
+                    : "bg-[#F3E8FF] text-[#8C3BE8]"
                 }`}
               >
                 {pendingCount}

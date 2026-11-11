@@ -131,7 +131,7 @@ export default function ReviewQueuePage() {
           <div className="flex items-center gap-3">
             <div className="rounded-2xl border border-white/10 bg-[#22252A] px-5 py-2.5 text-right">
               <span className="block text-xs font-mono text-white/50">Needs review</span>
-              <span className="font-serif text-2xl font-normal text-amber-300">
+              <span className="font-serif text-2xl font-normal text-[#C48CFF]">
                 {pendingCount}
               </span>
             </div>
@@ -204,7 +204,7 @@ export default function ReviewQueuePage() {
                 {filterTab === "pending" && (
                   <button
                     onClick={() => setFilterTab("all")}
-                    className="mt-3 text-xs text-amber-300 hover:underline"
+                    className="mt-3 text-xs text-[#C48CFF] hover:text-[#B066FF] hover:underline"
                   >
                     View all verified items →
                   </button>
@@ -222,7 +222,7 @@ export default function ReviewQueuePage() {
                     onClick={() => handleSelectTask(task)}
                     className={`cursor-pointer rounded-2xl border p-5 transition-all ${
                       isSelected
-                        ? "border-amber-400/80 bg-[#2A2E35]"
+                        ? "border-[#B066FF]/70 bg-[#262A32] shadow-[0_0_15px_rgba(176,102,255,0.08)]"
                         : isResolved
                         ? "border-white/5 bg-[#1E2024] opacity-60 hover:opacity-100"
                         : "border-white/10 bg-[#22252A] hover:border-white/20 hover:bg-[#262A30]"
@@ -237,7 +237,7 @@ export default function ReviewQueuePage() {
                           Verified ✓
                         </span>
                       ) : (
-                        <span className="rounded-full bg-amber-500/10 border border-amber-500/25 px-2 py-0.5 text-[10px] font-mono text-amber-300">
+                        <span className="rounded-full bg-[#B066FF]/15 border border-[#B066FF]/30 px-2 py-0.5 text-[10px] font-mono text-[#C48CFF]">
                           {matchPct}% match
                         </span>
                       )}
@@ -263,7 +263,7 @@ export default function ReviewQueuePage() {
               <div className="rounded-3xl border border-white/10 bg-[#22252A] p-6 sm:p-8">
                 <div className="flex items-start justify-between gap-4 border-b border-white/10 pb-6">
                   <div>
-                    <span className="text-xs font-mono text-amber-300/90">
+                    <span className="text-xs font-mono text-[#C48CFF]">
                       Page {selectedTask.source_page || 1}
                     </span>
                     <h2 className="mt-1 font-serif text-2xl text-white">
@@ -273,7 +273,7 @@ export default function ReviewQueuePage() {
 
                   <div className="text-right">
                     <span className="text-xs font-mono text-white/40 block">Match Score</span>
-                    <span className="font-serif text-xl text-amber-300">
+                    <span className="font-serif text-xl text-[#C48CFF]">
                       {Math.round((selectedTask.confidence || 0.6) * 100)}%
                     </span>
                   </div>
@@ -294,8 +294,8 @@ export default function ReviewQueuePage() {
                     </p>
 
                     {/* Detected Highlight */}
-                    <div className="relative my-2 rounded-lg border-2 border-amber-500 bg-amber-500/15 p-3 text-xs text-[#111827] font-semibold">
-                      <span className="absolute -top-2.5 right-2 rounded bg-[#111827] px-1.5 py-0.2 text-[9px] font-mono text-amber-400">
+                    <div className="relative my-2 rounded-lg border border-[#B066FF] bg-[#B066FF]/15 p-3 text-xs text-[#111827] font-semibold">
+                      <span className="absolute -top-2.5 right-2 rounded bg-[#1A1C20] border border-[#B066FF]/40 px-1.5 py-0.2 text-[9px] font-mono text-[#C48CFF]">
                         DETECTED
                       </span>
                       {selectedTask.field_value}
@@ -317,7 +317,7 @@ export default function ReviewQueuePage() {
                     {!isEditing && selectedTask.status !== "resolved" && (
                       <button
                         onClick={() => setIsEditing(true)}
-                        className="flex items-center gap-1 text-xs text-amber-300 hover:underline"
+                        className="flex items-center gap-1 text-xs text-[#C48CFF] hover:text-[#B066FF] hover:underline"
                       >
                         <Edit3 className="h-3 w-3" />
                         <span>Edit</span>
@@ -331,7 +331,7 @@ export default function ReviewQueuePage() {
                         value={correctionInput}
                         onChange={(e) => setCorrectionInput(e.target.value)}
                         rows={3}
-                        className="w-full rounded-xl border border-amber-400/60 bg-black/40 p-3 text-sm text-white outline-none font-serif"
+                        className="w-full rounded-xl border border-[#B066FF]/60 bg-black/40 p-3 text-sm text-white outline-none font-serif focus:border-[#B066FF]"
                       />
                       <div className="flex gap-2 justify-end">
                         <button
@@ -377,7 +377,7 @@ export default function ReviewQueuePage() {
                         onClick={() => setIsEditing(true)}
                         className="flex items-center gap-2 rounded-full border border-white/20 bg-white/5 px-5 py-2.5 text-xs font-medium text-white transition-colors hover:bg-white/10"
                       >
-                        <Edit3 className="h-4 w-4 text-amber-300" />
+                        <Edit3 className="h-4 w-4 text-[#C48CFF]" />
                         <span>Edit value</span>
                       </button>
                     </div>
