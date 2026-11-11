@@ -164,6 +164,7 @@ function ChatContent() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [isStreaming, setIsStreaming] = useState(false);
+  const [loadingPhase, setLoadingPhase] = useState(0);
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
 
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
@@ -203,6 +204,27 @@ function ChatContent() {
     if (!selectedDocId) return null;
     return documents.find((d) => d.id === selectedDocId) || null;
   }, [documents, selectedDocId]);
+
+  useEffect(() => {
+    if (!isStreaming) {
+      setLoadingPhase(0);
+      return;
+    }
+    const t = setTimeout(() => setLoadingPhase(1), 1200);
+    return () => clearTimeout(t);
+  }, [isStreaming]);
+
+  const loadingPhrase = useMemo(() => {
+    if (loadingPhase === 1) return "Cross-referencing verified passages...";
+    if (activeDoc) {
+      const shortName =
+        activeDoc.filename.length > 28
+          ? activeDoc.filename.slice(0, 25) + "..."
+          : activeDoc.filename;
+      return `Examining ${shortName}...`;
+    }
+    return "Reading between the lines...";
+  }, [loadingPhase, activeDoc]);
 
   const scrollToBottom = (force = false) => {
     const now = performance.now();
@@ -538,11 +560,16 @@ function ChatContent() {
                   <div key={msg.id} className="flex justify-start">
                     <div className="w-full rounded-2xl border border-white/[0.08] bg-[#1B1D22] p-5 text-[#E2E4E9] shadow-sm">
                       {isAwaitingFirstToken ? (
-                        /* Claude-style elegant rhythmic breathing dots */
-                        <div className="flex items-center gap-1.5 py-1.5 px-0.5">
-                          <span className="h-1.5 w-1.5 rounded-full bg-white/40 animate-pulse [animation-duration:1s]" />
-                          <span className="h-1.5 w-1.5 rounded-full bg-white/60 animate-pulse [animation-duration:1s] [animation-delay:200ms]" />
-                          <span className="h-1.5 w-1.5 rounded-full bg-white/40 animate-pulse [animation-duration:1s] [animation-delay:400ms]" />
+                        /* Classical DocVane Editorial Loading State */
+                        <div className="flex items-center gap-2.5 py-1 text-xs select-none animate-in fade-in duration-200">
+                          <div className="flex items-center gap-1">
+                            <span className="h-1.5 w-1.5 rounded-full bg-amber-400/80 animate-pulse [animation-duration:1.2s]" />
+                            <span className="h-1.5 w-1.5 rounded-full bg-amber-400/50 animate-pulse [animation-duration:1.2s] [animation-delay:200ms]" />
+                            <span className="h-1.5 w-1.5 rounded-full bg-amber-400/30 animate-pulse [animation-duration:1.2s] [animation-delay:400ms]" />
+                          </div>
+                          <span className="font-serif italic text-[13px] text-white/60 tracking-wide">
+                            {loadingPhrase}
+                          </span>
                         </div>
                       ) : (
                         <div>{renderFormattedContent(msg.text, msg.isStreaming)}</div>
