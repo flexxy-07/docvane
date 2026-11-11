@@ -1,7 +1,9 @@
+import json
 import time
 import uuid
 
 from fastapi import APIRouter, Depends, status
+from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.app.api.deps import (
@@ -159,4 +161,69 @@ async def chat_with_documents(
         retry_count=state.get("retry_count", 0),
         node_latencies=state.get("node_latencies", {}),
     )
+
+
+@router.post(
+    "/chat/stream",
+    summary="Real-time token streaming RAG Chat endpoint",
+    description="Streams tokens directly from the LLM as they are generated using Server-Sent Events (SSE).",
+)
+async def chat_stream_with_documents(
+    payload: ChatRequest,
+    tenant_id: uuid.UUID = Depends(get_current_tenant_id),
+    session: AsyncSession = Depends(get_tenant_db),
+    retrieval_service: RetrievalService = Depends(get_retrieval_service),
+):
+    from backend.app.services.rag.nodes.generation import AnswerGenerator
+    from backend.app.services.rag.nodes.retrieval import retrieve_node
+
+    async def event_generator():
+        try:
+            # 1. Multi-stage hybrid retrieval
+            retrieval_state = await retrieve_node(
+                {"question": payload.question, "tenant_id": str(tenant_id)},
+                config={
+                    "configurable": {
+                        "session": session,
+                        "retrieval_service": retrieval_service,
+                        "top_k": payload.top_k,
+                    }
+                },
+            )
+            chunks = retrieval_state.get("retrieved_chunks", [])
+
+            # Yield citations immediately so the client can prepare source metadata
+            citations = [
+                {
+                    "chunk_id": str(c.get("chunk_id")) if c.get("chunk_id") else None,
+                    "document_id": str(c.get("document_id")) if c.get("document_id") else None,
+                    "page_number": c.get("page_number"),
+                    "score": c.get("score"),
+                    "match_type": c.get("match_type"),
+                    "content": c.get("content"),
+                }
+                for c in chunks[:5]
+            ]
+            yield f"data: {json.dumps({'type': 'sources', 'citations': citations})}\n\n"
+
+            # 2. Stream tokens from the LLM as each token is generated
+            generator = AnswerGenerator()
+            for token in generator.stream_answer(payload.question, chunks):
+                yield f"data: {json.dumps({'type': 'token', 'token': token})}\n\n"
+
+            # 3. Completion signal
+            yield f"data: {json.dumps({'type': 'done'})}\n\n"
+        except Exception as e:
+            yield f"data: {json.dumps({'type': 'error', 'error': str(e)})}\n\n"
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
+
 

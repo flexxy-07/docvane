@@ -295,3 +295,97 @@ export async function submitChatQuestion(
   return await res.json();
 }
 
+export interface ChatStreamCallbacks {
+  onSources?: (citations: CitationItem[]) => void;
+  onToken?: (token: string) => void;
+  onDone?: () => void;
+  onError?: (err: Error) => void;
+}
+
+export async function streamChatQuestion(
+  question: string,
+  callbacks: ChatStreamCallbacks,
+  tenantId: string = DEFAULT_TENANT_ID,
+  signal?: AbortSignal
+): Promise<void> {
+  const url = `${API_BASE_URL}/retrieval/chat/stream`;
+
+  try {
+    const res = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Tenant-ID": tenantId,
+      },
+      body: JSON.stringify({
+        question,
+        top_k: 5,
+        max_retries: 2,
+      }),
+      signal,
+    });
+
+    if (!res.ok) {
+      throw new Error(`Streaming failed with status ${res.status}`);
+    }
+
+    if (!res.body) {
+      throw new Error("No response body available for streaming");
+    }
+
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+      const parts = buffer.split("\n\n");
+      buffer = parts.pop() || "";
+
+      for (const part of parts) {
+        const trimmed = part.trim();
+        if (!trimmed.startsWith("data:")) continue;
+        const jsonStr = trimmed.slice(5).trim();
+        if (!jsonStr) continue;
+
+        try {
+          const payload = JSON.parse(jsonStr);
+          if (payload.type === "sources" && callbacks.onSources) {
+            callbacks.onSources(payload.citations || []);
+          } else if (payload.type === "token" && callbacks.onToken) {
+            callbacks.onToken(payload.token || "");
+          } else if (payload.type === "done" && callbacks.onDone) {
+            callbacks.onDone();
+          } else if (payload.type === "error" && callbacks.onError) {
+            callbacks.onError(new Error(payload.error || "Streaming error"));
+          }
+        } catch {
+          // ignore incomplete JSON fragments
+        }
+      }
+    }
+
+    callbacks.onDone?.();
+  } catch (err: unknown) {
+    if (signal?.aborted) return;
+    console.warn("Live stream error or fallback, switching to standard chat:", err);
+    try {
+      const fallbackResult = await submitChatQuestion(question, tenantId);
+      callbacks.onSources?.(fallbackResult.citations || []);
+      const tokens = fallbackResult.answer.match(/\S+|\s+/g) || [fallbackResult.answer];
+      for (const tok of tokens) {
+        callbacks.onToken?.(tok);
+      }
+      callbacks.onDone?.();
+    } catch (fallbackErr: unknown) {
+      callbacks.onError?.(
+        fallbackErr instanceof Error ? fallbackErr : new Error("Failed to get response")
+      );
+    }
+  }
+}
+
+

@@ -64,14 +64,7 @@ class AnswerGenerator:
                 break
         return ""
 
-    def generate(self, question: str, chunks: list[dict[str, Any]]) -> str:
-        """Generates a structured, concise answer from context passages."""
-        if not chunks:
-            return (
-                "I could not find relevant passages in your uploaded documents "
-                "to answer this question. Please ensure your documents are uploaded and indexed."
-            )
-
+    def build_prompt(self, question: str, chunks: list[dict[str, Any]]) -> str:
         context_blocks: list[str] = []
         for idx, c in enumerate(chunks[:5], start=1):
             doc_id = c.get("document_id", "unknown")
@@ -83,25 +76,76 @@ class AnswerGenerator:
             context_blocks.append(f"[Source {idx} - Doc: {doc_id}, {page_str}]\n{clean_content}")
 
         context_text = "\n\n".join(context_blocks)
+        return (
+            "You are Docvane, an intelligent document analysis and RAG assistant.\n"
+            "Your objective is to directly, accurately, and concisely answer the user's question "
+            "using ONLY the provided context passages below.\n\n"
+            "Strict Guidelines:\n"
+            "1. Answer the question directly and cleanly without unnecessary preamble or repeating raw file headers.\n"
+            "2. When asked for a person, role, team member, or specific responsibility (such as website, web development, backend, or project lead), "
+            "directly identify the individual and their title: e.g. '**Name** - Role' [Source X].\n"
+            "3. Understand domain terminology and tech stacks: for example, website or web application corresponds to MERN Stack Developer, Frontend Developer, or Fullstack Developer; "
+            "mobile corresponds to App or Mobile Developer; project leader corresponds to Project Lead or AI/ML Developer & Project Lead.\n"
+            "4. Format structured lists (names, roles, deliverables, dates, financial amounts, or terms) as clean Markdown bullet points.\n"
+            "5. Cite the source for each claim using brackets, e.g., [Source 1] or [Page 1].\n"
+            "6. If the requested information is not mentioned in the context, clearly state that it was not found in the documents.\n\n"
+            f"Context Passages:\n{context_text}\n\n"
+            f"User Question: {question}\n\n"
+            "Direct Structured Answer:"
+        )
+
+    def stream_answer(self, question: str, chunks: list[dict[str, Any]]):
+        if not chunks:
+            yield (
+                "I could not find relevant passages in your uploaded documents "
+                "to answer this question. Please ensure your documents are uploaded and indexed."
+            )
+            return
+
+        if not self.api_key:
+            yield self.generate(question, chunks)
+            return
+
+        prompt = self.build_prompt(question, chunks)
+        for attempt in range(3):
+            try:
+                resp = completion(
+                    model=self.model,
+                    messages=[{"role": "user", "content": prompt}],
+                    api_key=self.api_key,
+                    temperature=0.2,
+                    max_tokens=800,
+                    stream=True,
+                )
+                yielded_any = False
+                for chunk in resp:
+                    delta = chunk.choices[0].delta.content or ""
+                    if delta:
+                        yielded_any = True
+                        yield delta
+                if yielded_any:
+                    return
+            except Exception as e:
+                err_str = str(e).lower()
+                logger.warning("LLM streaming attempt %d failed: %s", attempt + 1, str(e))
+                if attempt < 2 and any(k in err_str for k in ("429", "rate", "quota", "resource_exhausted")):
+                    time.sleep(2.0 * (attempt + 1))
+                    continue
+                break
+
+        fallback = self.generate(question, chunks)
+        yield fallback
+
+    def generate(self, question: str, chunks: list[dict[str, Any]]) -> str:
+        """Generates a structured, concise answer from context passages."""
+        if not chunks:
+            return (
+                "I could not find relevant passages in your uploaded documents "
+                "to answer this question. Please ensure your documents are uploaded and indexed."
+            )
 
         if self.api_key:
-            prompt = (
-                "You are Docvane, an intelligent document analysis and RAG assistant.\n"
-                "Your objective is to directly, accurately, and concisely answer the user's question "
-                "using ONLY the provided context passages below.\n\n"
-                "Strict Guidelines:\n"
-                "1. Answer the question directly and cleanly without unnecessary preamble or repeating raw file headers.\n"
-                "2. When asked for a person, role, team member, or specific responsibility (such as website, web development, backend, or project lead), "
-                "directly identify the individual and their title: e.g. '**Name** - Role' [Source X].\n"
-                "3. Understand domain terminology and tech stacks: for example, website or web application corresponds to MERN Stack Developer, Frontend Developer, or Fullstack Developer; "
-                "mobile corresponds to App or Mobile Developer; project leader corresponds to Project Lead or AI/ML Developer & Project Lead.\n"
-                "4. Format structured lists (names, roles, deliverables, dates, financial amounts, or terms) as clean Markdown bullet points.\n"
-                "5. Cite the source for each claim using brackets, e.g., [Source 1] or [Page 1].\n"
-                "6. If the requested information is not mentioned in the context, clearly state that it was not found in the documents.\n\n"
-                f"Context Passages:\n{context_text}\n\n"
-                f"User Question: {question}\n\n"
-                "Direct Structured Answer:"
-            )
+            prompt = self.build_prompt(question, chunks)
             llm_res = self._call_llm(prompt).strip()
             if llm_res:
                 return llm_res

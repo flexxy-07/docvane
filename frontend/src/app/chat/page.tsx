@@ -13,13 +13,14 @@ import {
   FileText,
   X,
   Square,
-  Sparkles,
 } from "lucide-react";
 import {
   ChatResponse,
+  CitationItem,
   DocumentItem,
+  DEFAULT_TENANT_ID,
   fetchDocuments,
-  submitChatQuestion,
+  streamChatQuestion,
 } from "@/lib/api";
 
 interface Message {
@@ -163,15 +164,12 @@ function ChatContent() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
-  const [loadingPhase, setLoadingPhase] = useState(0);
   const [isStreaming, setIsStreaming] = useState(false);
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
 
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
-  const streamTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const currentStreamingMsgIdRef = useRef<string | null>(null);
-  const fullStreamingTextRef = useRef<string>("");
+  const abortControllerRef = useRef<AbortController | null>(null);
   const lastScrollTime = useRef<number>(0);
 
   useEffect(() => {
@@ -186,23 +184,11 @@ function ChatContent() {
   // Clean up streaming on unmount
   useEffect(() => {
     return () => {
-      if (streamTimeoutRef.current) clearTimeout(streamTimeoutRef.current);
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
     };
   }, []);
-
-  // Multi-stage loading feedback during retrieval
-  useEffect(() => {
-    if (!loading) {
-      setLoadingPhase(0);
-      return;
-    }
-    const t1 = setTimeout(() => setLoadingPhase(1), 700);
-    const t2 = setTimeout(() => setLoadingPhase(2), 1400);
-    return () => {
-      clearTimeout(t1);
-      clearTimeout(t2);
-    };
-  }, [loading]);
 
   const activeDoc = useMemo(() => {
     if (!selectedDocId) return null;
@@ -222,121 +208,54 @@ function ChatContent() {
   }, [messages, loading]);
 
   const stopStreaming = () => {
-    if (streamTimeoutRef.current) {
-      clearTimeout(streamTimeoutRef.current);
-      streamTimeoutRef.current = null;
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
     }
-    const msgId = currentStreamingMsgIdRef.current;
-    const fullText = fullStreamingTextRef.current;
-    if (msgId && fullText) {
-      setMessages((prev) =>
-        prev.map((m) =>
-          m.id === msgId ? { ...m, text: fullText, isStreaming: false } : m
-        )
-      );
-    }
-    currentStreamingMsgIdRef.current = null;
-    fullStreamingTextRef.current = "";
     setIsStreaming(false);
+    setLoading(false);
+    setMessages((prev) =>
+      prev.map((m) => (m.isStreaming ? { ...m, isStreaming: false } : m))
+    );
     scrollToBottom(true);
   };
 
-  const startStreamingResponse = (assistantMsgId: string, fullText: string, meta: ChatResponse) => {
-    // If empty text returned, complete immediately
-    if (!fullText) {
-      setMessages((prev) => [
-        ...prev,
-        { id: assistantMsgId, sender: "assistant", text: "", isStreaming: false, responseMeta: meta },
-      ]);
-      return;
+  const handleSend = async (questionText?: string) => {
+    const q = (questionText || input).trim();
+    if (!q || loading || isStreaming) return;
+
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
     }
+    abortControllerRef.current = new AbortController();
 
-    currentStreamingMsgIdRef.current = assistantMsgId;
-    fullStreamingTextRef.current = fullText;
-    setIsStreaming(true);
+    const userMsgId = "user-" + Date.now();
+    const assistantMsgId = "assistant-" + (Date.now() + 1);
 
-    // Initial empty assistant message
+    const initialMeta: ChatResponse = {
+      question: q,
+      answer: "",
+      route: "simple",
+      citations: [],
+      rewritten_queries: [],
+      retry_count: 0,
+      node_latencies: {},
+    };
+
     setMessages((prev) => [
       ...prev,
+      { id: userMsgId, sender: "user", text: q },
       {
         id: assistantMsgId,
         sender: "assistant",
         text: "",
         isStreaming: true,
-        responseMeta: meta,
+        responseMeta: initialMeta,
       },
     ]);
-
-    // Split text into word and whitespace chunks
-    const tokens = fullText.match(/\S+|\s+/g) || [fullText];
-    let currentIndex = 0;
-    let accumulated = "";
-
-    const streamNextToken = () => {
-      if (currentIndex >= tokens.length) {
-        // Streaming finished
-        setMessages((prev) =>
-          prev.map((m) =>
-            m.id === assistantMsgId
-              ? { ...m, text: fullText, isStreaming: false }
-              : m
-          )
-        );
-        currentStreamingMsgIdRef.current = null;
-        fullStreamingTextRef.current = "";
-        setIsStreaming(false);
-        scrollToBottom(true);
-        return;
-      }
-
-      const token = tokens[currentIndex];
-      accumulated += token;
-      currentIndex++;
-
-      setMessages((prev) =>
-        prev.map((m) =>
-          m.id === assistantMsgId
-            ? { ...m, text: accumulated, isStreaming: true }
-            : m
-        )
-      );
-
-      scrollToBottom();
-
-      // Pacing: organic reading cadence
-      let delay = 18;
-      if (token.includes("\n")) delay = 50;
-      else if (token.endsWith(".") || token.endsWith("!") || token.endsWith("?")) delay = 40;
-      else if (token.endsWith(",") || token.endsWith(":") || token.endsWith(";")) delay = 28;
-
-      // Adapt speed for long answers
-      if (tokens.length > 120) {
-        delay = Math.max(10, Math.round(delay * 0.65));
-      }
-
-      streamTimeoutRef.current = setTimeout(streamNextToken, delay);
-    };
-
-    streamNextToken();
-  };
-
-  const handleSend = async (questionText?: string) => {
-    const q = (questionText || input).trim();
-    if (!q || loading) return;
-
-    // If currently streaming, complete it first
-    if (isStreaming) {
-      stopStreaming();
-    }
-
-    const userMsgId = "user-" + Date.now();
-    const newMessages: Message[] = [
-      ...messages,
-      { id: userMsgId, sender: "user", text: q },
-    ];
-    setMessages(newMessages);
     setInput("");
     setLoading(true);
+    setIsStreaming(true);
 
     try {
       const effectiveQuestion =
@@ -344,27 +263,89 @@ function ChatContent() {
           ? `${q} (regarding document ${activeDoc.filename})`
           : q;
 
-      const result = await submitChatQuestion(effectiveQuestion);
-      setLoading(false);
-
-      // Launch progressive streaming
-      const assistantMsgId = "assistant-" + Date.now();
-      startStreamingResponse(assistantMsgId, result.answer, result);
+      await streamChatQuestion(
+        effectiveQuestion,
+        {
+          onSources: (citations: CitationItem[]) => {
+            setMessages((prev) =>
+              prev.map((m) =>
+                m.id === assistantMsgId
+                  ? {
+                      ...m,
+                      responseMeta: {
+                        ...(m.responseMeta || initialMeta),
+                        citations,
+                      },
+                    }
+                  : m
+              )
+            );
+          },
+          onToken: (token: string) => {
+            // First token received: turn off loading indicator immediately!
+            setLoading(false);
+            setMessages((prev) =>
+              prev.map((m) =>
+                m.id === assistantMsgId
+                  ? { ...m, text: m.text + token, isStreaming: true }
+                  : m
+              )
+            );
+            scrollToBottom();
+          },
+          onDone: () => {
+            setLoading(false);
+            setIsStreaming(false);
+            setMessages((prev) =>
+              prev.map((m) =>
+                m.id === assistantMsgId ? { ...m, isStreaming: false } : m
+              )
+            );
+            scrollToBottom(true);
+          },
+          onError: (err: Error) => {
+            setLoading(false);
+            setIsStreaming(false);
+            setMessages((prev) =>
+              prev.map((m) =>
+                m.id === assistantMsgId
+                  ? {
+                      ...m,
+                      text:
+                        m.text ||
+                        "Sorry, I could not retrieve an answer right now. Please try again.",
+                      isStreaming: false,
+                    }
+                  : m
+              )
+            );
+            scrollToBottom(true);
+          },
+        },
+        DEFAULT_TENANT_ID,
+        abortControllerRef.current.signal
+      );
     } catch {
       setLoading(false);
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: "assistant-err-" + Date.now(),
-          sender: "assistant",
-          text: "Sorry, I could not retrieve an answer right now. Please try again.",
-        },
-      ]);
+      setIsStreaming(false);
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.id === assistantMsgId
+            ? {
+                ...m,
+                text:
+                  m.text ||
+                  "Sorry, I could not retrieve an answer right now. Please try again.",
+                isStreaming: false,
+              }
+            : m
+        )
+      );
     }
   };
 
   const handleReset = () => {
-    if (isStreaming) stopStreaming();
+    stopStreaming();
     setMessages([]);
     setInput("");
     inputRef.current?.focus();
@@ -406,12 +387,6 @@ function ChatContent() {
       "What are the important dates or deadlines?",
     ];
   }, [activeDoc]);
-
-  const loadingMessages = [
-    "Consulting workspace documents...",
-    "Analyzing document passages...",
-    "Drafting verified response...",
-  ];
 
   return (
     <div className="flex flex-col h-[calc(100vh-4rem)] w-full bg-[#1A1C20] text-[#E2E4E9]">
@@ -501,11 +476,21 @@ function ChatContent() {
                   );
                 }
 
+                // If assistant message is still awaiting the very first token
+                const isWaitingFirstToken = msg.isStreaming && !msg.text;
+
                 return (
                   <div key={msg.id} className="flex justify-start">
                     <div className="w-full rounded-2xl border border-white/[0.08] bg-[#1B1D22] p-5 text-[#E2E4E9] shadow-sm">
-                      {/* Answer with progressive streaming cursor */}
-                      <div>{renderFormattedContent(msg.text, msg.isStreaming)}</div>
+                      {/* Quiet first-token loading status (NO spinning yellow stars) */}
+                      {isWaitingFirstToken ? (
+                        <div className="flex items-center gap-2 text-xs text-white/50 py-1 font-mono">
+                          <span className="inline-block h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                          <span>Reading documents...</span>
+                        </div>
+                      ) : (
+                        <div>{renderFormattedContent(msg.text, msg.isStreaming)}</div>
+                      )}
 
                       {/* Sources (gracefully reveals once streaming completes) */}
                       {!msg.isStreaming && meta?.citations && meta.citations.length > 0 && (
@@ -566,18 +551,6 @@ function ChatContent() {
                 );
               })}
 
-              {/* Multi-Phase Loading Feedback */}
-              {loading && (
-                <div className="flex items-center gap-2.5 text-xs text-white/60 py-2">
-                  <div className="flex h-5 w-5 items-center justify-center rounded-md bg-amber-400/10 text-amber-300">
-                    <Sparkles className="h-3.5 w-3.5 animate-spin" />
-                  </div>
-                  <span className="font-mono text-white/70">
-                    {loadingMessages[loadingPhase]}
-                  </span>
-                </div>
-              )}
-
               <div ref={messagesEndRef} />
             </div>
           )}
@@ -614,15 +587,15 @@ function ChatContent() {
               type="text"
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              placeholder={isStreaming ? "Generating answer..." : "Ask a question..."}
-              disabled={loading}
-              className="w-full rounded-xl border border-white/10 bg-[#22252A] py-3 pl-4 pr-12 text-sm text-white placeholder-white/40 outline-none focus:border-white/25 focus:bg-[#262A30] transition-colors"
+              placeholder={isStreaming ? "Responding..." : "Ask a question..."}
+              disabled={loading || isStreaming}
+              className="w-full rounded-xl border border-white/10 bg-[#22252A] py-3 pl-4 pr-12 text-sm text-white placeholder-white/40 outline-none focus:border-white/25 focus:bg-[#262A30] transition-colors disabled:opacity-70"
             />
             {isStreaming ? (
               <button
                 type="button"
                 onClick={stopStreaming}
-                title="Stop streaming"
+                title="Stop response"
                 className="absolute right-2 flex h-8 w-8 items-center justify-center rounded-lg bg-white/15 text-white transition-colors hover:bg-white/25"
               >
                 <Square className="h-3 w-3 fill-current" />
@@ -648,7 +621,7 @@ export default function ChatPage() {
   return (
     <Suspense
       fallback={
-        <div className="flex min-h-[calc(100vh-4rem)] w-full items-center justify-center bg-[#1A1C20] text-white/50 text-xs">
+        <div className="flex min-h-[calc(100vh-4rem)] w-full items-center justify-center bg-[#1A1C20] text-white/50 text-xs font-mono">
           Loading...
         </div>
       }
