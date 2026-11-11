@@ -110,7 +110,7 @@ function renderFormattedContent(text: string, isStreaming?: boolean) {
               })}
               {showCursor && (
                 <span
-                  className="inline-block w-1.5 h-3.5 ml-1 bg-amber-400 rounded-sm animate-pulse align-middle"
+                  className="inline-block w-1.5 h-3.5 ml-1 bg-[#B066FF] shadow-[0_0_8px_rgba(176,102,255,0.6)] rounded-sm animate-pulse align-middle"
                   aria-hidden="true"
                 />
               )}
@@ -563,9 +563,9 @@ function ChatContent() {
                         /* Classical DocVane Editorial Loading State */
                         <div className="flex items-center gap-2.5 py-1 text-xs select-none animate-in fade-in duration-200">
                           <div className="flex items-center gap-1">
-                            <span className="h-1.5 w-1.5 rounded-full bg-amber-400/80 animate-pulse [animation-duration:1.2s]" />
-                            <span className="h-1.5 w-1.5 rounded-full bg-amber-400/50 animate-pulse [animation-duration:1.2s] [animation-delay:200ms]" />
-                            <span className="h-1.5 w-1.5 rounded-full bg-amber-400/30 animate-pulse [animation-duration:1.2s] [animation-delay:400ms]" />
+                            <span className="h-1.5 w-1.5 rounded-full bg-[#B066FF]/90 shadow-[0_0_6px_rgba(176,102,255,0.4)] animate-pulse [animation-duration:1.2s]" />
+                            <span className="h-1.5 w-1.5 rounded-full bg-[#B066FF]/55 animate-pulse [animation-duration:1.2s] [animation-delay:200ms]" />
+                            <span className="h-1.5 w-1.5 rounded-full bg-[#B066FF]/30 animate-pulse [animation-duration:1.2s] [animation-delay:400ms]" />
                           </div>
                           <span className="font-serif italic text-[13px] text-white/60 tracking-wide">
                             {loadingPhrase}
