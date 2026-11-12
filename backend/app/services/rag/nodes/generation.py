@@ -47,6 +47,10 @@ class AnswerGenerator:
                     api_key=self.api_key,
                     temperature=0.2,
                     max_tokens=800,
+                    metadata={
+                        "trace_name": "docvane-rag-answer",
+                        "tags": ["docvane", "rag", "generation"],
+                    },
                 )
                 response = cast(ModelResponse, resp)
                 content = (response.choices[0].message.content or "").strip()
@@ -116,6 +120,10 @@ class AnswerGenerator:
                     temperature=0.2,
                     max_tokens=800,
                     stream=True,
+                    metadata={
+                        "trace_name": "docvane-chat-stream",
+                        "tags": ["docvane", "chat", "stream"],
+                    },
                 )
                 yielded_any = False
                 for chunk in resp:

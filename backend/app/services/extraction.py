@@ -94,6 +94,10 @@ class ExtractionService:
             messages=messages,
             api_key=self.api_key if self.api_key else None,
             temperature=0.0,
+            metadata={
+                "trace_name": "docvane-field-extraction",
+                "tags": ["docvane", "extraction"],
+            },
         )
         response = cast(ModelResponse, resp)
         return response.choices[0].message.content or ""

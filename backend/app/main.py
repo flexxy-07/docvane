@@ -82,13 +82,24 @@ async def ensure_default_seed() -> None:
 
 def setup_observability() -> None:
     """Configures Langfuse LLM tracing and observability if keys are provided."""
-    if settings.LANGFUSE_PUBLIC_KEY and settings.LANGFUSE_SECRET_KEY:
+    public_key = settings.LANGFUSE_PUBLIC_KEY or os.environ.get("LANGFUSE_PUBLIC_KEY", "")
+    secret_key = settings.LANGFUSE_SECRET_KEY or os.environ.get("LANGFUSE_SECRET_KEY", "")
+    host = (
+        settings.LANGFUSE_BASE_URL
+        or settings.LANGFUSE_HOST
+        or os.environ.get("LANGFUSE_BASE_URL", "")
+        or os.environ.get("LANGFUSE_HOST", "")
+        or "https://cloud.langfuse.com"
+    )
+
+    if public_key and secret_key:
         try:
             import litellm
 
-            os.environ["LANGFUSE_PUBLIC_KEY"] = settings.LANGFUSE_PUBLIC_KEY
-            os.environ["LANGFUSE_SECRET_KEY"] = settings.LANGFUSE_SECRET_KEY
-            os.environ["LANGFUSE_HOST"] = settings.LANGFUSE_HOST or "https://cloud.langfuse.com"
+            os.environ["LANGFUSE_PUBLIC_KEY"] = public_key
+            os.environ["LANGFUSE_SECRET_KEY"] = secret_key
+            os.environ["LANGFUSE_HOST"] = host
+            os.environ["LANGFUSE_BASE_URL"] = host
 
             if not isinstance(litellm.success_callback, list):
                 litellm.success_callback = []
@@ -100,7 +111,7 @@ def setup_observability() -> None:
             if "langfuse" not in litellm.failure_callback:
                 litellm.failure_callback.append("langfuse")
 
-            logger.info("Langfuse LLM observability enabled for LiteLLM.")
+            logger.info("Langfuse LLM observability enabled for LiteLLM (host=%s).", host)
         except Exception as e:
             logger.warning("Could not initialize Langfuse callback: %s", e)
     else:

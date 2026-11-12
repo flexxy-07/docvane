@@ -47,6 +47,10 @@ class AnswerSupportGrader:
                 api_key=self.api_key,
                 temperature=0.0,
                 max_tokens=20,
+                metadata={
+                    "trace_name": "docvane-answer-support",
+                    "tags": ["docvane", "rag", "hallucination-check"],
+                },
             )
             response = cast(ModelResponse, resp)
             return (response.choices[0].message.content or "").strip().lower()

@@ -45,6 +45,10 @@ class SqlGenerator:
                 api_key=self.api_key,
                 temperature=0.0,
                 max_tokens=300,
+                metadata={
+                    "trace_name": "docvane-text-to-sql",
+                    "tags": ["docvane", "rag", "text-to-sql"],
+                },
             )
             response = cast(ModelResponse, resp)
             return (response.choices[0].message.content or "").strip()

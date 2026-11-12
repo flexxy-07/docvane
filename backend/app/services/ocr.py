@@ -176,6 +176,10 @@ class OCRService:
                 messages=messages,
                 api_key=self.api_key if self.api_key else None,
                 temperature=0.0,
+                metadata={
+                    "trace_name": "docvane-vision-ocr",
+                    "tags": ["docvane", "ocr", "vision-fallback"],
+                },
             )
             response = cast(ModelResponse, resp)
             raw_content = response.choices[0].message.content or ""

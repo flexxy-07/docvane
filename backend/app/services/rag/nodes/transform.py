@@ -40,6 +40,10 @@ class QueryTransformer:
                 api_key=self.api_key,
                 temperature=0.2,
                 max_tokens=250,
+                metadata={
+                    "trace_name": "docvane-query-transform",
+                    "tags": ["docvane", "rag", "transformation"],
+                },
             )
             response = cast(ModelResponse, resp)
             return response.choices[0].message.content or ""
