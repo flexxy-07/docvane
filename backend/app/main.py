@@ -80,9 +80,37 @@ async def ensure_default_seed() -> None:
         logger.warning("Could not execute default seed check: %s", exc)
 
 
+def setup_observability() -> None:
+    """Configures Langfuse LLM tracing and observability if keys are provided."""
+    if settings.LANGFUSE_PUBLIC_KEY and settings.LANGFUSE_SECRET_KEY:
+        try:
+            import litellm
+
+            os.environ["LANGFUSE_PUBLIC_KEY"] = settings.LANGFUSE_PUBLIC_KEY
+            os.environ["LANGFUSE_SECRET_KEY"] = settings.LANGFUSE_SECRET_KEY
+            os.environ["LANGFUSE_HOST"] = settings.LANGFUSE_HOST or "https://cloud.langfuse.com"
+
+            if not isinstance(litellm.success_callback, list):
+                litellm.success_callback = []
+            if "langfuse" not in litellm.success_callback:
+                litellm.success_callback.append("langfuse")
+
+            if not isinstance(litellm.failure_callback, list):
+                litellm.failure_callback = []
+            if "langfuse" not in litellm.failure_callback:
+                litellm.failure_callback.append("langfuse")
+
+            logger.info("Langfuse LLM observability enabled for LiteLLM.")
+        except Exception as e:
+            logger.warning("Could not initialize Langfuse callback: %s", e)
+    else:
+        logger.info("Langfuse keys not provided. LLM tracing is inactive.")
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     logger.info(f"Starting {settings.PROJECT_NAME} in [{settings.ENVIRONMENT}] mode...")
+    setup_observability()
     await ensure_default_seed()
     yield
     logger.info(f"Shutting down {settings.PROJECT_NAME}")
